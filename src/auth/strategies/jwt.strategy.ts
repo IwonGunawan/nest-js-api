@@ -23,15 +23,13 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
    * dipanggil otomatis setelah token berhasil di verifikasi
    * return value akan tersedia di request.user
    */
-  async validate(payload: { sub: number }) {
-    console.log(payload);
+  async validate(payload: { id: number }) {
     const user = await this.userRepo.findOne({
       where: {
-        id: payload.sub,
+        id: payload.id,
         deleted: '0',
       },
     });
-    console.log({ user });
 
     if (!user) throw new UnauthorizedException();
 
