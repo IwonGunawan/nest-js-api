@@ -8,19 +8,19 @@ import { currentDate } from '../common/consts/datetime';
 
 export interface BillDetail {
   // tagihan baru (status='0')
-  list_bill: WaterUsage[];
+  listBill: WaterUsage[];
 
   // underpayment dari bulan lalu (status='2')
-  underpayment_usage: WaterUsage | null;
-  underpayment_amount: number;
+  underpaymentUsage: WaterUsage | null;
+  underpaymentAmount: number;
 
   // overpayment dari bulan lalu (status='3')
-  overpayment_usage: WaterUsage | null;
-  overpayment_amount: number;
+  overpaymentUsage: WaterUsage | null;
+  overpaymentAmount: number;
 
   // hasil kalkulasi
-  bill_total: number; // total dari list_bill setelah penalty
-  final_total: number; // bill_total + underpayment - overpayment, ceiling 100
+  billTotal: number; // total dari listBill setelah penalty
+  finalTotal: number; // billTotal + underpayment - overpayment, ceiling 100
 }
 
 @Injectable()
@@ -62,13 +62,13 @@ export class BillingService {
     );
 
     return {
-      list_bill: listBill,
-      underpayment_usage: underpaymentUsage,
-      underpayment_amount: underpaymentAmount,
-      overpayment_usage: overpaymentUsage,
-      overpayment_amount: overpaymentAmount,
-      bill_total: billTotal,
-      final_total: finalTotal,
+      listBill: listBill,
+      underpaymentUsage: underpaymentUsage,
+      underpaymentAmount: underpaymentAmount,
+      overpaymentUsage: overpaymentUsage,
+      overpaymentAmount: overpaymentAmount,
+      billTotal: billTotal,
+      finalTotal: finalTotal,
     };
   }
 

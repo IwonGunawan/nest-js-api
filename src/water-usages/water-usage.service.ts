@@ -39,13 +39,13 @@ export class WaterUsageService {
     const qb = this.customerRepo
       .createQueryBuilder('c')
       .select([
-        'c.id          AS customer_id',
+        'c.id          AS customerId',
         'c.code        AS code',
         'c.name        AS name',
-        'c.village_id  AS village_id',
+        'c.village_id  AS villageId',
         'prefix.prefix AS prefix',
         // is_checked: 1 jika sudah ada water_usage bulan ini, 0 jika belum
-        `CASE WHEN wu.id IS NOT NULL THEN 1 ELSE 0 END AS is_checked`,
+        `CASE WHEN wu.id IS NOT NULL THEN 1 ELSE 0 END AS isChecked`,
       ])
       .leftJoin('c.prefix', 'prefix')
       // left join ke water_usages hanya untuk bulan & tahun sekarang
@@ -70,13 +70,13 @@ export class WaterUsageService {
     const sortColumn = sortBy === 'name' ? 'c.name' : 'c.id';
     qb.orderBy(sortColumn, sortOrder).offset(offset).limit(limit);
 
-    const [data, total] = await Promise.all([
+    const [data, totalData] = await Promise.all([
       qb.getRawMany(),
       // count query terpisah tanpa pagination
       this.customerRepo
         .createQueryBuilder('c')
         .where('c.deleted = :deleted', { deleted: '0' })
-        .andWhere('c.village_id = :villageId', {
+        .andWhere(query.village_id ? 'c.village_id = :villageId' : '1=1', {
           villageId: query.village_id,
         })
         .andWhere(
@@ -89,12 +89,12 @@ export class WaterUsageService {
     return {
       data,
       meta: {
-        total,
+        totalData,
         page,
         limit,
-        total_pages: Math.ceil(total / limit),
-        checked_month: month,
-        checked_year: year,
+        totalPages: Math.ceil(totalData / limit),
+        checkedMonth: month,
+        checkedYear: year,
       },
     };
   }
@@ -104,7 +104,7 @@ export class WaterUsageService {
     const limit = Number(query.limit ?? 10);
     const offset = (page - 1) * limit;
 
-    const [data, total] = await this.waterUsageRepo.findAndCount({
+    const [data, totalData] = await this.waterUsageRepo.findAndCount({
       where: { customerId, deleted: '0' },
       relations: ['rate'],
       order: { year: 'DESC', month: 'DESC' },
@@ -115,10 +115,10 @@ export class WaterUsageService {
     return {
       data,
       meta: {
-        total,
+        totalData,
         page,
         limit,
-        total_pages: Math.ceil(total / limit),
+        totalPages: Math.ceil(totalData / limit),
       },
     };
   }

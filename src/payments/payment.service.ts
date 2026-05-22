@@ -17,16 +17,6 @@ export class PaymentsService {
   constructor(
     @InjectRepository(Payment)
     private paymentRepo: Repository<Payment>,
-    @InjectRepository(PaymentDetail)
-    private paymentDetailRepo: Repository<PaymentDetail>,
-    @InjectRepository(Overpayment)
-    private overpaymentRepo: Repository<Overpayment>,
-    @InjectRepository(Underpayment)
-    private underpaymentRepo: Repository<Underpayment>,
-    @InjectRepository(WaterUsage)
-    private waterUsageRepo: Repository<WaterUsage>,
-    @InjectRepository(ActivityLog)
-    private activityLogRepo: Repository<ActivityLog>,
     private billingService: BillingService,
     private dataSource: DataSource,
   ) {}
@@ -37,17 +27,17 @@ export class PaymentsService {
     const bill = await this.billingService.getBillDetail(customerId);
 
     return {
-      customer_id: customerId,
-      list_bill: bill.list_bill.map((u) => ({
+      customerId,
+      listBill: bill.listBill.map((u) => ({
         // water_usage_id: u.id,
         month: u.month,
         year: u.year,
-        meter_usage: u.meterUsage,
+        meterUsage: u.meterUsage,
       })),
-      underpayment: bill.underpayment_amount,
-      overpayment: bill.overpayment_amount,
-      bill_total: bill.bill_total,
-      final_total: bill.final_total,
+      underpayment: bill.underpaymentAmount,
+      overpayment: bill.overpaymentAmount,
+      billTotal: bill.billTotal,
+      finalTotal: bill.finalTotal,
     };
   }
 
@@ -84,7 +74,7 @@ export class PaymentsService {
     }
 
     // 3. Hitung kembalian
-    const change = dto.cash - bill.final_total;
+    const change = dto.cash - bill.finalTotal;
 
     // 4. Tentukan status pembayaran
     const isUnderpayment = change < 0; // uang cash < total billing
@@ -98,18 +88,18 @@ export class PaymentsService {
 
       // 5a. Encode info untuk keperluan receipt (format existing dipertahankan)
       const infoEncoded =
-        JSON.stringify(bill.list_bill) +
+        JSON.stringify(bill.listBill) +
         '###' +
-        JSON.stringify(bill.underpayment_usage ?? {}) +
+        JSON.stringify(bill.underpaymentUsage ?? {}) +
         '###' +
-        JSON.stringify(bill.overpayment_usage ?? {});
+        JSON.stringify(bill.overpaymentUsage ?? {});
 
       // 5b. Simpan payment
       const payment = await manager.save(
         Payment,
         manager.create(Payment, {
           customerId: dto.customer_id,
-          total: bill.final_total,
+          total: bill.finalTotal,
           cash: dto.cash,
           info: infoEncoded,
           logUuid,
@@ -119,40 +109,40 @@ export class PaymentsService {
       );
 
       // 5c. Settlement underpayment lama (kalau ada)
-      if (bill.underpayment_usage) {
+      if (bill.underpaymentUsage) {
         await Promise.all([
-          manager.update(WaterUsage, bill.underpayment_usage.id, {
+          manager.update(WaterUsage, bill.underpaymentUsage.id, {
             status: '1',
           }),
           manager.save(
             PaymentDetail,
             manager.create(PaymentDetail, {
               paymentId: payment.id,
-              waterUsageId: bill.underpayment_usage.id, // => underpayment_usage.id is water_usage_id
+              waterUsageId: bill.underpaymentUsage.id, // => underpaymentUsage.id is water_usage_id
             }),
           ),
         ]);
       }
 
       // 5d. Settle overpayment lama (kalau ada)
-      if (bill.overpayment_usage) {
+      if (bill.overpaymentUsage) {
         await Promise.all([
-          manager.update(WaterUsage, bill.overpayment_usage.id, {
+          manager.update(WaterUsage, bill.overpaymentUsage.id, {
             status: '1',
           }),
           manager.save(
             PaymentDetail,
             manager.create(PaymentDetail, {
               paymentId: payment.id,
-              waterUsageId: bill.overpayment_usage.id,
+              waterUsageId: bill.overpaymentUsage.id,
             }),
           ),
         ]);
       }
 
       // 5e. Proses tiap bill (DESC: index 0 = bulan terbaru)
-      for (let i = 0; i < bill.list_bill.length; i++) {
-        const usage = bill.list_bill[i];
+      for (let i = 0; i < bill.listBill.length; i++) {
+        const usage = bill.listBill[i];
         const isMostRecent = i === 0;
 
         // Simpan payment detail untuk semua bulan
@@ -212,7 +202,7 @@ export class PaymentsService {
           action: 'paid',
           logs: JSON.stringify({
             cash: dto.cash,
-            total: bill.final_total,
+            total: bill.finalTotal,
             change: Math.abs(change),
             save_change: dto.save_change,
             status: isUnderpayment
@@ -262,13 +252,13 @@ export class PaymentsService {
         : 'LUNAS';
 
     return {
-      ref_number: logUuid,
-      paid_date: now.toISOString(),
-      total: bill.final_total,
+      refNumber: logUuid,
+      paidDate: now.toISOString(),
+      total: bill.finalTotal,
       cash: dto.cash,
       change: Math.max(0, change),
-      month_total: bill.list_bill.length + (bill.underpayment_usage ? 1 : 0),
-      text_info: textInfo,
+      monthTotal: bill.listBill.length + (bill.underpaymentUsage ? 1 : 0),
+      textInfo,
     };
   }
 }
