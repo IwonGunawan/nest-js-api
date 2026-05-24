@@ -26,14 +26,14 @@ export class ReportsService {
     const qb = this.paymentRepo
       .createQueryBuilder('p')
       .select([
-        'p.id            AS payment_id',
+        'p.id            AS paymentId',
         'p.total         AS total',
         'p.cash          AS cash',
-        'p.log_uuid      AS ref_number',
-        'p.created_at    AS paid_date',
-        'c.id            AS customer_id',
-        'c.code          AS customer_code',
-        'c.name          AS customer_name',
+        'p.log_uuid      AS refNumber',
+        'p.created_at    AS paidDate',
+        'c.id            AS customerId',
+        'c.code          AS customerCode',
+        'c.name          AS customerName',
         'cp.prefix       AS prefix',
         'v.village_name  AS village',
         'u.name          AS officer',
@@ -77,8 +77,8 @@ export class ReportsService {
     return {
       data,
       summary: {
-        total_income: Number(incomeResult?.income ?? 0),
-        total_transactions: total,
+        totalIncome: Number(incomeResult?.income ?? 0),
+        totalTransactions: total,
       },
       meta: {
         month,
@@ -86,7 +86,7 @@ export class ReportsService {
         total,
         page,
         limit,
-        total_pages: Math.ceil(total / limit),
+        totalPages: Math.ceil(total / limit),
       },
     };
   }
@@ -103,18 +103,18 @@ export class ReportsService {
     const qb = this.waterUsageRepo
       .createQueryBuilder('wu')
       .select([
-        'wu.id            AS water_usage_id',
+        'wu.id            AS waterUsageId',
         'wu.month         AS month',
         'wu.year          AS year',
-        'wu.meter_usage   AS meter_usage',
+        'wu.meter_usage   AS meterUsage',
         'wu.status        AS status',
-        'c.id             AS customer_id',
-        'c.code           AS customer_code',
-        'c.name           AS customer_name',
+        'c.id             AS customerId',
+        'c.code           AS customerCode',
+        'c.name           AS customerName',
         'cp.prefix        AS prefix',
         'v.village_name   AS village',
         // underpayment amount kalau status='2'
-        `COALESCE(up.amount, 0) AS underpayment_amount`,
+        `COALESCE(up.amount, 0) AS underpaymentAmount`,
       ])
       .innerJoin('customers', 'c', 'c.id = wu.customer_id')
       .leftJoin('customer_prefix', 'cp', 'cp.id = c.prefix_id')
@@ -153,7 +153,7 @@ export class ReportsService {
         total,
         page,
         limit,
-        total_pages: Math.ceil(total / limit),
+        totalPages: Math.ceil(total / limit),
       },
     };
   }

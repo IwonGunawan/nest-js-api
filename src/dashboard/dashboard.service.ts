@@ -31,12 +31,12 @@ export class DashboardService {
       ]);
 
     return {
-      this_month: { month, year },
-      income_this_month: incomeThisMonth,
-      paid_count: paidCount,
-      unpaid_count: unpaidCount,
-      income_chart: incomeChart,
-      top_arrears: topArrears,
+      thisMonth: { month, year },
+      incomeThisMonth: incomeThisMonth,
+      paidCount: paidCount,
+      unpaidCount: unpaidCount,
+      incomeChart: incomeChart,
+      topArrears: topArrears,
     };
   }
 
@@ -108,10 +108,10 @@ export class DashboardService {
   // Top 10 customer dengan tunggakan terbesar
   private async getTopArrears(): Promise<
     {
-      customer_id: number;
+      customerId: number;
       name: string;
       code: string;
-      arrears_amount: number;
+      arrearsAmount: number;
     }[]
   > {
     // Ambil semua underpayment aktif + customer info
@@ -137,10 +137,10 @@ export class DashboardService {
       }>();
 
     return result.map((r) => ({
-      customer_id: Number(r.customer_id),
+      customerId: Number(r.customer_id),
       name: r.name,
       code: r.code,
-      arrears_amount: Number(r.arrears_amount),
+      arrearsAmount: Number(r.arrears_amount),
     }));
   }
 }
