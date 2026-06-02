@@ -4,10 +4,10 @@ export class CreateWaterUsageDto {
   @IsNotEmpty()
   @IsNumber()
   @IsPositive()
-  customer_id: number;
+  customerId: number;
 
   @IsNotEmpty()
   @IsNumber()
   @IsPositive()
-  meter_number: number;
+  meterNumber: number;
 }

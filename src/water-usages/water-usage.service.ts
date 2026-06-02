@@ -129,23 +129,23 @@ export class WaterUsageService {
 
     // 2. Jalankan validasi customer dan cek duplikat secara paralel
     const [customer] = await Promise.all([
-      this.customersService.findOne(dto.customer_id),
-      this.validateNoDuplicate(dto.customer_id, month, year),
+      this.customersService.findOne(dto.customerId),
+      this.validateNoDuplicate(dto.customerId, month, year),
     ]);
 
     // 3. Tentukan prevMeter berdasarkan kondisi meter
-    const prevMeter = await this.resolvePrevMeter(dto.customer_id);
+    const prevMeter = await this.resolvePrevMeter(dto.customerId);
 
     // 4. Validasi angka meter tidak boleh lebih kecil dari sebelumnya
-    if (prevMeter > 0 && dto.meter_number < prevMeter) {
+    if (prevMeter > 0 && dto.meterNumber < prevMeter) {
       throw new BadRequestException(
-        `Angka meter (${dto.meter_number}) tidak boleh lebih kecil dari ` +
+        `Angka meter (${dto.meterNumber}) tidak boleh lebih kecil dari ` +
           `bulan lalu (${prevMeter})`,
       );
     }
 
     // 5. Hitung pemakaian
-    const usage = dto.meter_number - prevMeter;
+    const usage = dto.meterNumber - prevMeter;
 
     // 6. Ambil tarif aktif
     const rate = await this.ratesService.findCurrent();
@@ -156,12 +156,12 @@ export class WaterUsageService {
     // 7. Simpan record baru
     const waterUsage = this.waterUsageRepo.create({
       uuid: uuidv4(),
-      customerId: dto.customer_id,
+      customerId: dto.customerId,
       villageId: customer.villageId,
       rateId: rate.id,
       month,
       year,
-      meterNumber: dto.meter_number,
+      meterNumber: dto.meterNumber,
       meterUsage: usage,
       status: '0',
       lastUsed: '0',

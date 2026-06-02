@@ -92,7 +92,7 @@ export class DashboardService {
       .addSelect('YEAR(p.created_at)', 'year')
       .addSelect('SUM(p.total)', 'total')
       .where('p.deleted = :deleted', { deleted: '0' })
-      .andWhere('p.created_at >= DATE_SUB(NOW(), INTERVAL 12 MONTH)')
+      .andWhere('p.created_at >= DATE_SUB(NOW(), INTERVAL 6 MONTH)')
       .groupBy('YEAR(p.created_at), MONTH(p.created_at)')
       .orderBy('year', 'ASC')
       .addOrderBy('month', 'ASC')

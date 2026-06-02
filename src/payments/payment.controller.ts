@@ -22,12 +22,12 @@ export class PaymentsController {
   constructor(private paymentsService: PaymentsService) {}
 
   @Get('bill')
-  getBill(@Query('customer_id', ParseIntPipe) customerId: number) {
+  getBill(@Query('customerId', ParseIntPipe) customerId: number) {
     return this.paymentsService.getBill(customerId);
   }
 
   @Get('customer/:customerId')
-  findByCustomer(
+  histories(
     @Param('customerId', ParseIntPipe) customerId: number,
     @Query() query: QueryPaymentDto,
   ) {

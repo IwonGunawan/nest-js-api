@@ -25,7 +25,7 @@ export class CustomersService {
       .leftJoinAndSelect('c.prefix', 'prefix')
       .where('c.deleted = :deleted', { deleted: '0' });
 
-    const page = Number(query.page ?? 1);
+    const page = Number(query.page) > 1 ? Number(query.page) : 1;
     const limit = Number(query.limit ?? 10);
     const skip = (page - 1) * limit;
 
@@ -158,7 +158,7 @@ export class CustomersService {
     const villageCode = VILLAGE_CODE_MAP[villageId];
 
     if (!villageCode) {
-      throw new NotFoundException('Village code tidak ditemukan');
+      throw new NotFoundException('village id not found');
     }
 
     const randomNumber = Math.floor(Math.random() * 900000) + 100000;
