@@ -7,3 +7,12 @@ export const VILLAGE_CODE_MAP: Record<number, string> = {
   6: 'LLD',
   7: 'WNG',
 };
+
+export const WaterUsageStatus = {
+  NEW: '0',
+  PAID: '1',
+  UNDERPAYMENT: '2',
+  OVERPAYMENT: '3',
+};
+
+export const formatRupiah = (n: number) => 'Rp' + n.toLocaleString('id-ID');

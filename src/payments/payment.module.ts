@@ -9,6 +9,7 @@ import { WaterUsage } from '../common/entities/water-usage.entity';
 import { ActivityLog } from '../common/entities/activity-log.entity';
 import { PaymentsController } from './payment.controller';
 import { PaymentsService } from './payment.service';
+import { WaterUsageModule } from '../water-usages/water-usage.module';
 
 @Module({
   imports: [
@@ -20,6 +21,7 @@ import { PaymentsService } from './payment.service';
       Underpayment,
       ActivityLog,
     ]),
+    WaterUsageModule,
   ],
   controllers: [PaymentsController],
   providers: [PaymentsService, BillingService],

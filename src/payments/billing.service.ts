@@ -1,6 +1,6 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { WaterUsage } from '../common/entities/water-usage.entity';
 import { Underpayment } from '../common/entities/underpayment.entity';
 import { Overpayment } from '../common/entities/overpayment.entity';
@@ -8,7 +8,7 @@ import { currentDate } from '../common/consts/datetime';
 
 export interface BillDetail {
   // tagihan baru (status='0')
-  listBill: WaterUsage[];
+  waterUsages: WaterUsagePrice[];
 
   // underpayment dari bulan lalu (status='2')
   underpaymentUsage: WaterUsage | null;
@@ -21,6 +21,15 @@ export interface BillDetail {
   // hasil kalkulasi
   billTotal: number; // total dari listBill setelah penalty
   finalTotal: number; // billTotal + underpayment - overpayment, ceiling 100
+}
+
+export interface WaterUsagePrice {
+  waterUsageId: number;
+  month: number;
+  year: number;
+  meterUsage: number;
+  status: string; //0: baru, 1: lunas, 2: kurang bayar, 3: lebih bayar
+  totalPrice: number;
 }
 
 @Injectable()
@@ -52,17 +61,14 @@ export class BillingService {
         : Promise.resolve(0),
     ]);
 
-    if (!underpaymentUsage && !overpaymentUsage && listBill.length === 0) {
-      throw new NotFoundException('Tidak ada tagihan untuk customer ini');
-    }
-
-    const billTotal = this.calculateBillTotal(listBill);
+    const { waterUsages, accumulated: billTotal } =
+      this.calculateBillTotal(listBill);
     const finalTotal = this.ceilingToHundred(
       billTotal + underpaymentAmount - overpaymentAmount,
     );
 
     return {
-      listBill: listBill,
+      waterUsages: waterUsages,
       underpaymentUsage: underpaymentUsage,
       underpaymentAmount: underpaymentAmount,
       overpaymentUsage: overpaymentUsage,
@@ -74,8 +80,11 @@ export class BillingService {
 
   // ─── Kalkulasi ─────────────────────────────────────────────────────
 
-  calculateBillTotal(usages: WaterUsage[]): number {
-    if (usages.length === 0) return 0;
+  calculateBillTotal(usages: WaterUsage[]): {
+    waterUsages: WaterUsagePrice[];
+    accumulated: number;
+  } {
+    if (usages.length === 0) return { waterUsages: [], accumulated: 0 };
 
     const current = currentDate();
 
@@ -83,8 +92,21 @@ export class BillingService {
     const oldest_first = [...usages].reverse();
 
     let accumulated = 0;
+    const waterUsages: WaterUsagePrice[] = [];
 
     for (const usage of oldest_first) {
+      if (['2', '3'].includes(usage.status)) {
+        waterUsages.push({
+          waterUsageId: Number(usage.id),
+          month: usage.month,
+          year: usage.year,
+          meterUsage: usage.meterUsage,
+          status: usage.status,
+          totalPrice: 0,
+        });
+        continue;
+      }
+
       const pricePerM3 = Number(usage.rate?.pricePerM3 ?? 0);
       const usageAmount = usage.meterUsage * pricePerM3;
       const isCurrentMonth =
@@ -94,11 +116,21 @@ export class BillingService {
       // dan selalu pada bulan-bulan sebelumnya
       const applyPenalty = !isCurrentMonth || current.date > 15;
       const penalty = applyPenalty ? usageAmount * 0.05 : 0;
+      const total = usageAmount + penalty;
 
-      accumulated += usageAmount + penalty;
+      waterUsages.push({
+        waterUsageId: Number(usage.id),
+        month: usage.month,
+        year: usage.year,
+        meterUsage: usage.meterUsage,
+        status: usage.status,
+        totalPrice: total,
+      });
+
+      accumulated += total;
     }
 
-    return accumulated;
+    return { waterUsages, accumulated };
   }
 
   ceilingToHundred(amount: number): number {
@@ -109,7 +141,7 @@ export class BillingService {
 
   private getUnpaidUsages(customerId: number): Promise<WaterUsage[]> {
     return this.waterUsageRepo.find({
-      where: { customerId, status: '0', deleted: '0' },
+      where: { customerId, status: In(['0', '2', '3']), deleted: '0' },
       relations: ['rate'],
       order: { id: 'DESC' }, // DESC: index 0 = bulan terbaru
     });

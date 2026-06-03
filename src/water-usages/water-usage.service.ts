@@ -16,6 +16,29 @@ import { CreateWaterUsageDto } from './dtos/create-water-usage.dto';
 import { Customer } from '../common/entities/customer.entity';
 import { currentDate } from '../common/consts/datetime';
 
+export interface WaterUsageListItem {
+  customerId: number;
+  code: string;
+  name: string;
+  villageId: number;
+  prefix: string;
+  isChecked: 0 | 1; // 1 = sudah input bulan ini, 0 = belum
+}
+
+export interface WaterUsageListMeta {
+  totalData: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+  checkedMonth: number;
+  checkedYear: number;
+}
+
+export interface WaterUsageListResponse {
+  data: WaterUsageListItem[];
+  meta: WaterUsageListMeta;
+}
+
 @Injectable()
 export class WaterUsageService {
   constructor(
@@ -27,7 +50,7 @@ export class WaterUsageService {
     private customersService: CustomersService,
   ) {}
 
-  async findAll(query: QueryWaterUsageDto) {
+  async findAll(query: QueryWaterUsageDto): Promise<WaterUsageListResponse> {
     const page = Number(query.page ?? 1);
     const limit = Number(query.limit ?? 10);
     const offset = (page - 1) * limit;
@@ -71,7 +94,7 @@ export class WaterUsageService {
     qb.orderBy(sortColumn, sortOrder).offset(offset).limit(limit);
 
     const [data, totalData] = await Promise.all([
-      qb.getRawMany(),
+      qb.getRawMany<WaterUsageListItem>(),
       // count query terpisah tanpa pagination
       this.customerRepo
         .createQueryBuilder('c')
@@ -168,6 +191,8 @@ export class WaterUsageService {
       createdBy: userId,
       createdAt: new Date(),
     });
+
+    // [TODO] 8. inserrt log to activity_logs
 
     return this.waterUsageRepo.save(waterUsage);
   }

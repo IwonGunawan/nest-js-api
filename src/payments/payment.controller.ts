@@ -15,11 +15,17 @@ import { PaymentsService } from './payment.service';
 import { QueryPaymentDto } from './dtos/query-payment.dto';
 import { CreatePaymentDto } from './dtos/create-payment.dto';
 import { User } from '../common/entities/user.entity';
+import { QueryWaterUsageDto } from '../water-usages/dtos/query-water-usage.dto';
 
 @Controller('payments')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class PaymentsController {
   constructor(private paymentsService: PaymentsService) {}
+
+  @Get()
+  list(@Query() query: QueryWaterUsageDto) {
+    return this.paymentsService.list(query);
+  }
 
   @Get('bill')
   getBill(@Query('customerId', ParseIntPipe) customerId: number) {
@@ -31,7 +37,7 @@ export class PaymentsController {
     @Param('customerId', ParseIntPipe) customerId: number,
     @Query() query: QueryPaymentDto,
   ) {
-    return this.paymentsService.findByCustomer(customerId, query);
+    return this.paymentsService.histories(customerId, query);
   }
 
   @Post()

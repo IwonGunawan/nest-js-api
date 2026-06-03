@@ -3,7 +3,7 @@ import { IsNotEmpty, IsNumber, IsPositive } from 'class-validator';
 export class CreatePaymentDto {
   @IsNotEmpty()
   @IsNumber()
-  customer_id: number;
+  customerId: number;
 
   @IsNotEmpty()
   @IsNumber()
@@ -12,5 +12,5 @@ export class CreatePaymentDto {
 
   @IsNotEmpty()
   @IsNumber()
-  save_change: number;
+  saveChange: number;
 }

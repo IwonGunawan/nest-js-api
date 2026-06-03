@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
@@ -11,6 +15,9 @@ import { ActivityLog } from '../common/entities/activity-log.entity';
 import { BillingService } from './billing.service';
 import { QueryPaymentDto } from './dtos/query-payment.dto';
 import { CreatePaymentDto } from './dtos/create-payment.dto';
+import { QueryWaterUsageDto } from '../water-usages/dtos/query-water-usage.dto';
+import { WaterUsageService } from '../water-usages/water-usage.service';
+import { formatRupiah, WaterUsageStatus } from '../common/consts';
 
 @Injectable()
 export class PaymentsService {
@@ -18,22 +25,47 @@ export class PaymentsService {
     @InjectRepository(Payment)
     private paymentRepo: Repository<Payment>,
     private billingService: BillingService,
+    private waterUsageService: WaterUsageService,
     private dataSource: DataSource,
   ) {}
+
+  async list(payload: QueryWaterUsageDto) {
+    const data = await this.waterUsageService.findAll(payload);
+    if (data.meta.totalData == 0) return [];
+
+    const newData = await Promise.all(
+      data.data.map(async (row) => {
+        const customerId = row.customerId;
+        const bill = await this.billingService.getBillDetail(customerId);
+        return {
+          ...row,
+          finalTotal: bill.finalTotal,
+        };
+      }),
+    );
+
+    return {
+      ...data,
+      data: newData,
+    };
+  }
 
   // ─── GET BILL ──────────────────────────────────────────────────────
 
   async getBill(customerId: number) {
     const bill = await this.billingService.getBillDetail(customerId);
 
+    if (
+      !bill.underpaymentUsage &&
+      !bill.overpaymentUsage &&
+      bill.waterUsages.length === 0
+    ) {
+      throw new NotFoundException('Tidak ada tagihan untuk customer ini');
+    }
+
     return {
       customerId,
-      listBill: bill.listBill.map((u) => ({
-        // water_usage_id: u.id,
-        month: u.month,
-        year: u.year,
-        meterUsage: u.meterUsage,
-      })),
+      waterUsages: bill.waterUsages,
       underpayment: bill.underpaymentAmount,
       overpayment: bill.overpaymentAmount,
       billTotal: bill.billTotal,
@@ -43,7 +75,7 @@ export class PaymentsService {
 
   // ─── GET PAYMENT HISTORY ───────────────────────────────────────────
 
-  async findByCustomer(customerId: number, query: QueryPaymentDto) {
+  async histories(customerId: number, query: QueryPaymentDto) {
     const page = Number(query.page ?? 1);
     const limit = Number(query.limit ?? 10);
     const offset = (page - 1) * limit;
@@ -66,7 +98,7 @@ export class PaymentsService {
 
   async create(dto: CreatePaymentDto, userId: number) {
     // 1. Ambil detail tagihan
-    const bill = await this.billingService.getBillDetail(dto.customer_id);
+    const bill = await this.billingService.getBillDetail(dto.customerId);
 
     // 2. Validasi cash tidak boleh 0
     if (dto.cash <= 0) {
@@ -78,17 +110,24 @@ export class PaymentsService {
 
     // 4. Tentukan status pembayaran
     const isUnderpayment = change < 0; // uang cash < total billing
-    const isOverpayment = change > 0 && dto.save_change > 0; // uang cash > billing & customer ingin simpan
+    const isOverpayment = change > 0 && dto.saveChange > 0; // uang cash > billing & customer ingin simpan
     const isExact = !isUnderpayment && !isOverpayment;
 
     // 5. Proses dalam transaction
+    /**
+     * insert to payments
+     * insert to payment_details
+     * insert to activity_logs
+     * insert to overpayment || underpayment
+     * update water_usages
+     */
     return this.dataSource.transaction(async (manager) => {
       const logUuid = uuidv4();
       const now = new Date();
 
       // 5a. Encode info untuk keperluan receipt (format existing dipertahankan)
       const infoEncoded =
-        JSON.stringify(bill.listBill) +
+        JSON.stringify(bill.waterUsages) +
         '###' +
         JSON.stringify(bill.underpaymentUsage ?? {}) +
         '###' +
@@ -98,7 +137,7 @@ export class PaymentsService {
       const payment = await manager.save(
         Payment,
         manager.create(Payment, {
-          customerId: dto.customer_id,
+          customerId: dto.customerId,
           total: bill.finalTotal,
           cash: dto.cash,
           info: infoEncoded,
@@ -108,61 +147,31 @@ export class PaymentsService {
         }),
       );
 
-      // 5c. Settlement underpayment lama (kalau ada)
-      if (bill.underpaymentUsage) {
-        await Promise.all([
-          manager.update(WaterUsage, bill.underpaymentUsage.id, {
-            status: '1',
-          }),
-          manager.save(
-            PaymentDetail,
-            manager.create(PaymentDetail, {
-              paymentId: payment.id,
-              waterUsageId: bill.underpaymentUsage.id, // => underpaymentUsage.id is water_usage_id
-            }),
-          ),
-        ]);
-      }
-
-      // 5d. Settle overpayment lama (kalau ada)
-      if (bill.overpaymentUsage) {
-        await Promise.all([
-          manager.update(WaterUsage, bill.overpaymentUsage.id, {
-            status: '1',
-          }),
-          manager.save(
-            PaymentDetail,
-            manager.create(PaymentDetail, {
-              paymentId: payment.id,
-              waterUsageId: bill.overpaymentUsage.id,
-            }),
-          ),
-        ]);
-      }
-
-      // 5e. Proses tiap bill (DESC: index 0 = bulan terbaru)
-      for (let i = 0; i < bill.listBill.length; i++) {
-        const usage = bill.listBill[i];
-        const isMostRecent = i === 0;
+      // 5c. Proses tiap bill (ASC: index 0 = bulan terlama)
+      for (let i = 0; i < bill.waterUsages.length; i++) {
+        const usage = bill.waterUsages[i];
+        const isLastMonth = i === bill.waterUsages.length - 1;
 
         // Simpan payment detail untuk semua bulan
         await manager.save(
           PaymentDetail,
           manager.create(PaymentDetail, {
             paymentId: payment.id,
-            waterUsageId: usage.id,
+            waterUsageId: usage.waterUsageId,
           }),
         );
 
-        if (isMostRecent) {
+        if (isLastMonth) {
           // Bulan terbaru: tentukan status berdasarkan hasil pembayaran
           if (isUnderpayment) {
             await Promise.all([
-              manager.update(WaterUsage, usage.id, { status: '2' }),
+              manager.update(WaterUsage, usage.waterUsageId, {
+                status: WaterUsageStatus.UNDERPAYMENT,
+              }),
               manager.save(
                 Underpayment,
                 manager.create(Underpayment, {
-                  waterUsageId: usage.id,
+                  waterUsageId: usage.waterUsageId,
                   amount: Math.abs(change),
                   createdBy: userId,
                   createdAt: now,
@@ -171,12 +180,14 @@ export class PaymentsService {
             ]);
           } else if (isOverpayment) {
             await Promise.all([
-              manager.update(WaterUsage, usage.id, { status: '3' }),
+              manager.update(WaterUsage, usage.waterUsageId, {
+                status: WaterUsageStatus.OVERPAYMENT,
+              }),
               manager.save(
                 Overpayment,
                 manager.create(Overpayment, {
-                  waterUsageId: usage.id,
-                  amount: change,
+                  waterUsageId: usage.waterUsageId,
+                  amount: dto.saveChange,
                   createdBy: userId,
                   createdAt: now,
                 }),
@@ -184,37 +195,51 @@ export class PaymentsService {
             ]);
           } else {
             // Lunas pas atau kembalian tidak disimpan
-            await manager.update(WaterUsage, usage.id, { status: '1' });
+            await manager.update(WaterUsage, usage.waterUsageId, {
+              status: WaterUsageStatus.PAID,
+            });
           }
         } else {
           // Bulan-bulan lama: selalu lunas
-          await manager.update(WaterUsage, usage.id, { status: '1' });
+          await manager.update(WaterUsage, usage.waterUsageId, {
+            status: WaterUsageStatus.PAID,
+          });
         }
       } // END of loop list_billing
 
       // 5f. Simpan activity log
-      await manager.save(
-        ActivityLog,
+      const activityLogs = [
         manager.create(ActivityLog, {
           uuid: logUuid,
-          customerId: dto.customer_id,
+          customerId: dto.customerId,
           type: 'paid',
-          action: 'paid',
+          action: isUnderpayment
+            ? 'kurang_bayar'
+            : isOverpayment
+              ? 'lunas_lebih_bayar'
+              : 'lunas',
           logs: JSON.stringify({
+            finalTotal: bill.finalTotal,
             cash: dto.cash,
-            total: bill.finalTotal,
             change: Math.abs(change),
-            save_change: dto.save_change,
-            status: isUnderpayment
-              ? 'underpayment'
-              : isOverpayment
-                ? 'overpayment'
-                : 'lunas',
+            save_change: dto.saveChange,
           }),
           createdBy: String(userId),
           createdAt: now,
         }),
-      );
+
+        manager.create(ActivityLog, {
+          uuid: logUuid,
+          customerId: dto.customerId,
+          type: 'paid',
+          action: 'text_info',
+          logs: this.textInfo(isUnderpayment, isOverpayment, change),
+          createdBy: String(userId),
+          createdAt: now,
+        }),
+      ];
+
+      await manager.save(ActivityLog, activityLogs);
 
       // 6. Return receipt
       return this.buildReceipt({
@@ -232,6 +257,23 @@ export class PaymentsService {
 
   // ─── Private Helpers ───────────────────────────────────────────────
 
+  private textInfo(
+    isUnderpayment: boolean,
+    isOverpayment: boolean,
+    change: number,
+  ) {
+    /**
+     * LUNAS
+     * BELUM LUNAS, sisa tagihan Rp10.000
+     * LUNAS, disimpan Rp1.000
+     */
+    return isUnderpayment
+      ? `BELUM LUNAS, sisa tagihan ${formatRupiah(Math.abs(change))}`
+      : isOverpayment
+        ? `LUNAS, disimpan ${formatRupiah(Math.abs(change))} untuk bulan depan`
+        : 'LUNAS';
+  }
+
   private buildReceipt(params: {
     logUuid: string;
     now: Date;
@@ -245,11 +287,7 @@ export class PaymentsService {
     const { logUuid, now, dto, bill, change, isUnderpayment, isOverpayment } =
       params;
 
-    const textInfo = isUnderpayment
-      ? `BELUM LUNAS, sisa tagihan Rp ${Math.abs(change).toLocaleString('id-ID')}`
-      : isOverpayment
-        ? `LUNAS, disimpan Rp ${change.toLocaleString('id-ID')} untuk bulan depan`
-        : 'LUNAS';
+    const textInfo = this.textInfo(isUnderpayment, isOverpayment, change);
 
     return {
       refNumber: logUuid,
@@ -257,7 +295,7 @@ export class PaymentsService {
       total: bill.finalTotal,
       cash: dto.cash,
       change: Math.max(0, change),
-      monthTotal: bill.listBill.length + (bill.underpaymentUsage ? 1 : 0),
+      monthTotal: bill.waterUsages.length,
       textInfo,
     };
   }
