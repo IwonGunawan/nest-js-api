@@ -23,6 +23,9 @@ export class Payment {
   @Column({ type: 'int', default: 0 })
   cash: number;
 
+  @Column({ type: 'tinyint', default: null })
+  status: number; // 1:lunas, 2:kurang-bayar, 3:lebih-bayar
+
   // Format: bill###underpayment###overpayment
   @Column({ type: 'mediumtext' })
   info: string;

@@ -81,8 +81,16 @@ export class PaymentsService {
     const offset = (page - 1) * limit;
 
     const [data, total] = await this.paymentRepo.findAndCount({
+      select: [
+        'id',
+        'customerId',
+        'total',
+        'cash',
+        'status',
+        'logUuid',
+        'createdAt',
+      ],
       where: { customerId, deleted: '0' },
-      relations: ['paymentDetails'],
       order: { id: 'DESC' },
       skip: offset,
       take: limit,
@@ -90,7 +98,12 @@ export class PaymentsService {
 
     return {
       data,
-      meta: { total, page, limit, total_pages: Math.ceil(total / limit) },
+      meta: {
+        page,
+        limit,
+        totalData: total,
+        totalPages: Math.ceil(total / limit),
+      },
     };
   }
 
@@ -103,6 +116,10 @@ export class PaymentsService {
     // 2. Validasi cash tidak boleh 0
     if (dto.cash <= 0) {
       throw new BadRequestException('Jumlah cash harus lebih dari 0');
+    }
+
+    if (bill.finalTotal == 0) {
+      throw new BadRequestException('Tidak ada tagihan untuk customer ini');
     }
 
     // 3. Hitung kembalian
