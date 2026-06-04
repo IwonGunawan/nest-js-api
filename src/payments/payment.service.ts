@@ -157,6 +157,7 @@ export class PaymentsService {
           customerId: dto.customerId,
           total: bill.finalTotal,
           cash: dto.cash,
+          status: isOverpayment ? 3 : isUnderpayment ? 2 : 1,
           info: infoEncoded,
           logUuid,
           createdBy: userId,
