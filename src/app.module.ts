@@ -8,6 +8,7 @@ import { WaterUsageModule } from './water-usages/water-usage.module';
 import { PaymentsModule } from './payments/payment.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { ReportsModule } from './reports/report.module';
+import { UsersModule } from './users/user.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { ReportsModule } from './reports/report.module';
     PaymentsModule,
     DashboardModule,
     ReportsModule,
+    UsersModule,
   ],
   controllers: [],
   providers: [],
