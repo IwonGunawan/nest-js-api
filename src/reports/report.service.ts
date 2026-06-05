@@ -19,7 +19,7 @@ export class ReportsService {
     const page = Number(query.page ?? 1);
     const limit = Number(query.limit ?? 10);
     const offset = (page - 1) * limit;
-    const sortOrder = query.sort_order ?? 'DESC';
+    const sortOrder = query.sortOrder ?? 'DESC';
     const month = Number(query.month);
     const year = Number(query.year);
 
@@ -46,8 +46,8 @@ export class ReportsService {
       .andWhere('YEAR(p.created_at) = :year', { year })
       .andWhere('p.deleted = :deleted', { deleted: '0' });
 
-    if (query.village_id) {
-      qb.andWhere('c.village_id = :villageId', { villageId: query.village_id });
+    if (query.villageId) {
+      qb.andWhere('c.village_id = :villageId', { villageId: query.villageId });
     }
 
     if (query.search) {
@@ -96,7 +96,7 @@ export class ReportsService {
     const page = Number(query.page ?? 1);
     const limit = Number(query.limit ?? 10);
     const offset = (page - 1) * limit;
-    const sortOrder = query.sort_order ?? 'ASC';
+    const sortOrder = query.sortOrder ?? 'ASC';
     const month = Number(query.month);
     const year = Number(query.year);
 
@@ -130,8 +130,8 @@ export class ReportsService {
       .andWhere('wu.status IN (:...statuses)', { statuses: ['0', '2'] })
       .andWhere('wu.deleted = :deleted', { deleted: '0' });
 
-    if (query.village_id) {
-      qb.andWhere('c.village_id = :villageId', { villageId: query.village_id });
+    if (query.villageId) {
+      qb.andWhere('c.village_id = :villageId', { villageId: query.villageId });
     }
 
     if (query.search) {

@@ -17,7 +17,7 @@ export class ReportQueryDto {
 
   @IsOptional()
   @IsNumberString()
-  village_id?: string;
+  villageId?: string;
 
   @IsOptional()
   @IsString()
@@ -33,5 +33,5 @@ export class ReportQueryDto {
 
   @IsOptional()
   @IsIn(['ASC', 'DESC'])
-  sort_order?: 'ASC' | 'DESC';
+  sortOrder?: 'ASC' | 'DESC';
 }
