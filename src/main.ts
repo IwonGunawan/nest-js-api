@@ -3,7 +3,6 @@ import { AppModule } from './app.module';
 import { Logger, ValidationPipe } from '@nestjs/common';
 
 async function bootstrap() {
-  const port = process.env.PORT || 3000;
   const logger = new Logger('Bootstrap');
 
   const app = await NestFactory.create(AppModule);
@@ -17,7 +16,13 @@ async function bootstrap() {
       },
     }),
   );
-  app.enableCors({ origin: 'http://localhost:5173' });
+  app.enableCors({
+    origin: process.env.FRONTEND_URL ?? 'http://localhost:5173',
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    credentials: true,
+  });
+
+  const port = process.env.PORT || 3000;
   await app.listen(port);
   logger.log(`Listening on port ${port}`);
 }
