@@ -4,6 +4,8 @@ import { Repository } from 'typeorm';
 import { Payment } from '../common/entities/payment.entity';
 import { WaterUsage } from '../common/entities/water-usage.entity';
 import { ReportQueryDto } from './dtos/report-query.dto';
+import { WaterUsageTotalQueryDto } from './dtos/water-usage-total-query.dto';
+import { currentDate } from '../common/consts/datetime';
 
 @Injectable()
 export class ReportsService {
@@ -13,6 +15,32 @@ export class ReportsService {
     @InjectRepository(WaterUsage)
     private waterUsageRepo: Repository<WaterUsage>,
   ) {}
+
+  // Total pemakaian meter air berdasarkan bulan & tahun (default: bulan berjalan)
+  async getWaterUsageTotal(query: WaterUsageTotalQueryDto) {
+    const now = currentDate();
+    const month = Number(query.month ?? now.month);
+    const year = Number(query.year ?? now.year);
+
+    const qb = this.waterUsageRepo
+      .createQueryBuilder('wu')
+      .select('SUM(wu.meterUsage)', 'totalMeterUsage')
+      .where('wu.month = :month', { month })
+      .andWhere('wu.year = :year', { year })
+      .andWhere('wu.deleted = :deleted', { deleted: '0' });
+
+    if (query.villageId) {
+      qb.andWhere('wu.villageId = :villageId', { villageId: query.villageId });
+    }
+
+    const result = await qb.getRawOne<{ totalMeterUsage: string }>();
+
+    return {
+      month,
+      year,
+      totalMeterUsage: Number(result?.totalMeterUsage ?? 0),
+    };
+  }
 
   // Rekap semua pembayaran di bulan tertentu
   async getMonthlyReport(query: ReportQueryDto) {

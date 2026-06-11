@@ -14,6 +14,7 @@ import { QueryWaterUsageDto } from './dtos/query-water-usage.dto';
 import { QueryByCustomerDto } from './dtos/query-by-customer.dto';
 import { CreateWaterUsageDto } from './dtos/create-water-usage.dto';
 import { Customer } from '../common/entities/customer.entity';
+import { Village } from '../common/entities/village.entity';
 import { currentDate } from '../common/consts/datetime';
 
 export interface WaterUsageListItem {
@@ -46,6 +47,8 @@ export class WaterUsageService {
     private waterUsageRepo: Repository<WaterUsage>,
     @InjectRepository(Customer)
     private customerRepo: Repository<Customer>,
+    @InjectRepository(Village)
+    private villageRepo: Repository<Village>,
     private ratesService: RatesService,
     private customersService: CustomersService,
   ) {}
@@ -208,6 +211,69 @@ export class WaterUsageService {
     usage.modifiedAt = new Date();
 
     return this.waterUsageRepo.save(usage);
+  }
+
+  // ─── CHECK PROGRESS ───────────────────────────────────────────────
+
+  async checkProgress() {
+    const { month, year } = currentDate();
+
+    type VillageRow = {
+      villageId: number;
+      villageName: string;
+      totalCustomers: string;
+      checkedCount: string;
+    };
+
+    const rows = await this.villageRepo
+      .createQueryBuilder('v')
+      .select([
+        'v.id                        AS villageId',
+        'v.name                      AS villageName',
+        'COUNT(DISTINCT c.id)        AS totalCustomers',
+        'COUNT(DISTINCT wu.id)       AS checkedCount',
+      ])
+      .leftJoin('v.customers', 'c', 'c.deleted = :deleted', { deleted: '0' })
+      .leftJoin(
+        'water_usages',
+        'wu',
+        'wu.customer_id = c.id AND wu.month = :month AND wu.year = :year AND wu.deleted = :deleted',
+        { month, year, deleted: '0' },
+      )
+      .where('v.status = :active', { active: '0' })
+      .groupBy('v.id')
+      .addGroupBy('v.name')
+      .orderBy('v.id', 'ASC')
+      .getRawMany<VillageRow>();
+
+    const villages = rows.map((r) => {
+      const total = Number(r.totalCustomers);
+      const checked = Number(r.checkedCount);
+      return {
+        villageId: Number(r.villageId),
+        villageName: r.villageName,
+        totalCustomers: total,
+        checkedCount: checked,
+        percent: total > 0 ? Math.round((checked / total) * 100) : 0,
+      };
+    });
+
+    const overallTotal = villages.reduce((s, v) => s + v.totalCustomers, 0);
+    const overallChecked = villages.reduce((s, v) => s + v.checkedCount, 0);
+
+    return {
+      month,
+      year,
+      overall: {
+        totalCustomers: overallTotal,
+        checkedCount: overallChecked,
+        percent:
+          overallTotal > 0
+            ? Math.round((overallChecked / overallTotal) * 100)
+            : 0,
+      },
+      villages,
+    };
   }
 
   // ─── Private Helpers ───────────────────────────────────────────────

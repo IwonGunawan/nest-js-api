@@ -6,10 +6,11 @@ import { WaterUsage } from '../common/entities/water-usage.entity';
 import { RatesModule } from '../rates/rate.module';
 import { CustomersModule } from '../customers/customer.module';
 import { Customer } from '../common/entities/customer.entity';
+import { Village } from '../common/entities/village.entity';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([WaterUsage, Customer]),
+    TypeOrmModule.forFeature([WaterUsage, Customer, Village]),
     RatesModule,
     CustomersModule,
   ],

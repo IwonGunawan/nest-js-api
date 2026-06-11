@@ -48,4 +48,9 @@ export class WaterUsageController {
   ) {
     return this.waterUsageService.markMeterReplaced(id, user.id);
   }
+
+  @Get('progress')
+  checkProgress() {
+    return this.waterUsageService.checkProgress();
+  }
 }

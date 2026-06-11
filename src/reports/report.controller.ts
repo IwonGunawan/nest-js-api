@@ -4,6 +4,7 @@ import { RolesGuard } from '../common/guards/roles.guard';
 import { Roles } from '../common/decorators/roles.decorator';
 import { ReportsService } from './report.service';
 import { ReportQueryDto } from './dtos/report-query.dto';
+import { WaterUsageTotalQueryDto } from './dtos/water-usage-total-query.dto';
 
 @Controller('reports')
 @UseGuards(JwtAuthGuard, RolesGuard)
@@ -20,5 +21,10 @@ export class ReportsController {
   @Roles('admin')
   getUnpaidReport(@Query() query: ReportQueryDto) {
     return this.reportsService.getUnpaidReport(query);
+  }
+
+  @Get('water-usage-total')
+  getWaterUsageTotal(@Query() query: WaterUsageTotalQueryDto) {
+    return this.reportsService.getWaterUsageTotal(query);
   }
 }

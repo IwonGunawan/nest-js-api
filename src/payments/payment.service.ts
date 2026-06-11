@@ -12,6 +12,7 @@ import { Overpayment } from '../common/entities/overpayment.entity';
 import { Underpayment } from '../common/entities/underpayment.entity';
 import { WaterUsage } from '../common/entities/water-usage.entity';
 import { ActivityLog } from '../common/entities/activity-log.entity';
+import { Customer } from '../common/entities/customer.entity';
 import { BillingService } from './billing.service';
 import { QueryPaymentDto } from './dtos/query-payment.dto';
 import { CreatePaymentDto } from './dtos/create-payment.dto';
@@ -24,6 +25,8 @@ export class PaymentsService {
   constructor(
     @InjectRepository(Payment)
     private paymentRepo: Repository<Payment>,
+    @InjectRepository(Customer)
+    private customerRepo: Repository<Customer>,
     private billingService: BillingService,
     private waterUsageService: WaterUsageService,
     private dataSource: DataSource,
@@ -48,6 +51,32 @@ export class PaymentsService {
       ...data,
       data: newData,
     };
+  }
+
+  // ─── PAYMENT SUMMARY ──────────────────────────────────────────────
+
+  async paymentSummary() {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth() + 1;
+
+    const [totalCount, paidResult] = await Promise.all([
+      this.customerRepo.count({ where: { deleted: '0' } }),
+      this.paymentRepo
+        .createQueryBuilder('p')
+        .select('COUNT(DISTINCT p.customerId)', 'count')
+        .where('p.deleted = :deleted', { deleted: '0' })
+        .andWhere('YEAR(p.createdAt) = :year', { year })
+        .andWhere('MONTH(p.createdAt) = :month', { month })
+        .getRawOne<{ count: string }>(),
+    ]);
+
+    const paidCount = Number(paidResult?.count ?? 0);
+    const unpaidCount = totalCount - paidCount;
+    const percent =
+      totalCount > 0 ? Math.round((paidCount / totalCount) * 100) : 0;
+
+    return { paidCount, unpaidCount, percent };
   }
 
   // ─── GET BILL ──────────────────────────────────────────────────────
