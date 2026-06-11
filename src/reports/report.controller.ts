@@ -5,11 +5,15 @@ import { Roles } from '../common/decorators/roles.decorator';
 import { ReportsService } from './report.service';
 import { ReportQueryDto } from './dtos/report-query.dto';
 import { WaterUsageTotalQueryDto } from './dtos/water-usage-total-query.dto';
+import { DashboardService } from '../dashboard/dashboard.service';
 
 @Controller('reports')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class ReportsController {
-  constructor(private reportsService: ReportsService) {}
+  constructor(
+    private reportsService: ReportsService,
+    private dashboardService: DashboardService,
+  ) {}
 
   @Get('monthly')
   @Roles('admin')
@@ -26,5 +30,10 @@ export class ReportsController {
   @Get('water-usage-total')
   getWaterUsageTotal(@Query() query: WaterUsageTotalQueryDto) {
     return this.reportsService.getWaterUsageTotal(query);
+  }
+
+  @Get('top-arrears')
+  getTopArrears() {
+    return this.dashboardService.getTopArrears();
   }
 }

@@ -106,7 +106,7 @@ export class DashboardService {
   }
 
   // Top 10 customer dengan tunggakan terbesar
-  private async getTopArrears(): Promise<
+  async getTopArrears(): Promise<
     {
       customerId: number;
       name: string;
