@@ -28,11 +28,11 @@ import { UsersModule } from './users/user.module';
         database: config.get('DB_NAME'),
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
         synchronize: false,
-        // SSL must in railway mysql
-        ssl:
-          process.env.NODE_ENV === 'production'
-            ? { rejectUnauthorized: false }
-            : false,
+        // enable SSL when needed
+        // ssl:
+        //   process.env.NODE_ENV === 'production'
+        //     ? { rejectUnauthorized: false }
+        //     : false,
       }),
     }),
 
