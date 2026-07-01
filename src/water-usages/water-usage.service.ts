@@ -57,8 +57,8 @@ export class WaterUsageService {
     const page = Number(query.page ?? 1);
     const limit = Number(query.limit ?? 10);
     const offset = (page - 1) * limit;
-    const sortBy = query.sort_by ?? 'name';
-    const sortOrder = query.sort_order ?? 'ASC';
+    const sortBy = query.sortBy ?? 'name';
+    const sortOrder = query.sortOrder ?? 'ASC';
 
     const { month, year } = currentDate();
 
@@ -83,8 +83,8 @@ export class WaterUsageService {
       )
       .where('c.deleted = :deleted', { deleted: '0' });
 
-    if (query.village_id) {
-      qb.andWhere('c.village_id = :villageId', { villageId: query.village_id });
+    if (query.villageId) {
+      qb.andWhere('c.village_id = :villageId', { villageId: query.villageId });
     }
 
     if (query.search) {
@@ -102,8 +102,8 @@ export class WaterUsageService {
       this.customerRepo
         .createQueryBuilder('c')
         .where('c.deleted = :deleted', { deleted: '0' })
-        .andWhere(query.village_id ? 'c.village_id = :villageId' : '1=1', {
-          villageId: query.village_id,
+        .andWhere(query.villageId ? 'c.village_id = :villageId' : '1=1', {
+          villageId: query.villageId,
         })
         .andWhere(
           query.search ? '(c.name LIKE :search OR c.code LIKE :search)' : '1=1',

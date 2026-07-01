@@ -3,7 +3,7 @@ import { IsIn, IsNumberString, IsOptional, IsString } from 'class-validator';
 export class QueryWaterUsageDto {
   @IsOptional()
   @IsNumberString()
-  village_id?: string;
+  villageId?: string;
 
   @IsOptional()
   @IsString()
@@ -19,9 +19,9 @@ export class QueryWaterUsageDto {
 
   @IsOptional()
   @IsIn(['name', 'id'])
-  sort_by?: 'name' | 'id';
+  sortBy?: 'name' | 'id';
 
   @IsOptional()
   @IsIn(['ASC', 'DESC'])
-  sort_order?: 'ASC' | 'DESC';
+  sortOrder?: 'ASC' | 'DESC';
 }
