@@ -15,7 +15,7 @@ import { QueryByCustomerDto } from './dtos/query-by-customer.dto';
 import { CreateWaterUsageDto } from './dtos/create-water-usage.dto';
 import { Customer } from '../common/entities/customer.entity';
 import { Village } from '../common/entities/village.entity';
-import { currentDate } from '../common/consts/datetime';
+import { currentDate, MONTH_NAMES } from '../common/consts/datetime';
 
 export interface WaterUsageListItem {
   customerId: number;
@@ -289,7 +289,7 @@ export class WaterUsageService {
 
     if (count > 0) {
       throw new ConflictException(
-        `Data bulan ${month}/${year} sudah ada untuk customer ini`,
+        `Data bulan ${MONTH_NAMES[month]} ${year} sudah ada untuk customer ini`,
       );
     }
   }

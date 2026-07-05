@@ -96,14 +96,6 @@ export class BillingService {
 
     for (const usage of oldest_first) {
       if (['2', '3'].includes(usage.status)) {
-        waterUsages.push({
-          waterUsageId: Number(usage.id),
-          month: usage.month,
-          year: usage.year,
-          meterUsage: usage.meterUsage,
-          status: usage.status,
-          totalPrice: 0,
-        });
         continue;
       }
 

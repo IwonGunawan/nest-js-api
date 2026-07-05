@@ -1,8 +1,4 @@
-import {
-  BadRequestException,
-  Injectable,
-  NotFoundException,
-} from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
@@ -34,7 +30,7 @@ export class PaymentsService {
 
   async list(payload: QueryWaterUsageDto) {
     const data = await this.waterUsageService.findAll(payload);
-    if (data.meta.totalData == 0) return [];
+    if (data.meta.totalData == 0) return data;
 
     const newData = await Promise.all(
       data.data.map(async (row) => {
@@ -89,7 +85,7 @@ export class PaymentsService {
       !bill.overpaymentUsage &&
       bill.waterUsages.length === 0
     ) {
-      throw new NotFoundException('Tidak ada tagihan untuk customer ini');
+      return bill;
     }
 
     return {
