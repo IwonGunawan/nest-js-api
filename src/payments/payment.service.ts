@@ -276,7 +276,12 @@ export class PaymentsService {
           customerId: dto.customerId,
           type: 'paid',
           action: 'text_info',
-          logs: this.textInfo(isUnderpayment, isOverpayment, change),
+          logs: this.textInfo(
+            isUnderpayment,
+            isOverpayment,
+            change,
+            dto.saveChange,
+          ),
           createdBy: String(userId),
           createdAt: now,
         }),
@@ -304,6 +309,7 @@ export class PaymentsService {
     isUnderpayment: boolean,
     isOverpayment: boolean,
     change: number,
+    saveChange: number,
   ) {
     /**
      * LUNAS
@@ -313,7 +319,7 @@ export class PaymentsService {
     return isUnderpayment
       ? `BELUM LUNAS, sisa tagihan ${formatRupiah(Math.abs(change))}`
       : isOverpayment
-        ? `LUNAS, disimpan ${formatRupiah(Math.abs(change))} untuk bulan depan`
+        ? `LUNAS, disimpan ${formatRupiah(Math.abs(saveChange))} untuk bulan depan`
         : 'LUNAS';
   }
 
@@ -330,7 +336,12 @@ export class PaymentsService {
     const { logUuid, now, dto, bill, change, isUnderpayment, isOverpayment } =
       params;
 
-    const textInfo = this.textInfo(isUnderpayment, isOverpayment, change);
+    const textInfo = this.textInfo(
+      isUnderpayment,
+      isOverpayment,
+      change,
+      dto.saveChange,
+    );
 
     return {
       refNumber: logUuid,
