@@ -14,7 +14,8 @@ import { QueryPaymentDto } from './dtos/query-payment.dto';
 import { CreatePaymentDto } from './dtos/create-payment.dto';
 import { QueryWaterUsageDto } from '../water-usages/dtos/query-water-usage.dto';
 import { WaterUsageService } from '../water-usages/water-usage.service';
-import { formatRupiah, WaterUsageStatus } from '../common/consts';
+import { formatRupiah, STATUS_MAP, WaterUsageStatus } from '../common/consts';
+import { formatDateTimeIndonesia } from '../common/consts/datetime';
 
 @Injectable()
 export class PaymentsService {
@@ -78,7 +79,10 @@ export class PaymentsService {
   // ─── GET BILL ──────────────────────────────────────────────────────
 
   async getBill(customerId: number) {
-    const bill = await this.billingService.getBillDetail(customerId);
+    const [bill, lastPayment] = await Promise.all([
+      this.billingService.getBillDetail(customerId),
+      this.buildLastPayment(customerId),
+    ]);
 
     if (
       !bill.underpaymentUsage &&
@@ -95,7 +99,24 @@ export class PaymentsService {
       overpayment: bill.overpaymentAmount,
       billTotal: bill.billTotal,
       finalTotal: bill.finalTotal,
+      textInfo: lastPayment,
     };
+  }
+
+  private async buildLastPayment(customerId: number) {
+    const lastPayment = await this.paymentRepo.findOne({
+      where: { customerId },
+      order: { id: 'DESC' },
+    });
+
+    if (!lastPayment) return '';
+    const text = `Total tagihan terakhir ${formatRupiah(lastPayment?.total)}
+    lalu dibayar sebesar ${formatRupiah(lastPayment.cash)}
+    dengan status ${STATUS_MAP[lastPayment.status]} 
+    tanggal ${formatDateTimeIndonesia(lastPayment.createdAt)}
+    `;
+
+    return text.replace(/\s+/g, ' ').trim();
   }
 
   // ─── GET PAYMENT HISTORY ───────────────────────────────────────────

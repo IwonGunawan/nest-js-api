@@ -16,3 +16,10 @@ export const WaterUsageStatus = {
 };
 
 export const formatRupiah = (n: number) => 'Rp' + n.toLocaleString('id-ID');
+
+export const STATUS_MAP: Record<string, string> = {
+  '0': 'Belum Bayar',
+  '1': 'Lunas',
+  '2': 'Kurang Bayar',
+  '3': 'Lebih Bayar',
+};
