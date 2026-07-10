@@ -84,14 +84,6 @@ export class PaymentsService {
       this.buildLastPayment(customerId),
     ]);
 
-    if (
-      !bill.underpaymentUsage &&
-      !bill.overpaymentUsage &&
-      bill.waterUsages.length === 0
-    ) {
-      return bill;
-    }
-
     return {
       customerId,
       waterUsages: bill.waterUsages,
