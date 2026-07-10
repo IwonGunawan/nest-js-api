@@ -11,11 +11,11 @@ export interface BillDetail {
   waterUsages: WaterUsagePrice[];
 
   // underpayment dari bulan lalu (status='2')
-  underpaymentUsage: WaterUsage | null;
+  underpaymentUsage: WaterUsagePrice | null;
   underpaymentAmount: number;
 
   // overpayment dari bulan lalu (status='3')
-  overpaymentUsage: WaterUsage | null;
+  overpaymentUsage: WaterUsagePrice | null;
   overpaymentAmount: number;
 
   // hasil kalkulasi
@@ -43,36 +43,29 @@ export class BillingService {
     private overpaymentRepo: Repository<Overpayment>,
   ) {}
 
+  // is called from 3 process: list payment, bill, create
   async getBillDetail(customerId: number): Promise<BillDetail> {
-    // Jalankan 3 query paralel — tidak saling bergantung
-    const [listBill, underpaymentUsage, overpaymentUsage] = await Promise.all([
+    const [listBill, underPayUsage, overPayUsage] = await Promise.all([
       this.getUnpaidUsages(customerId),
       this.getUnderpaymentUsage(customerId),
       this.getOverpaymentUsage(customerId),
     ]);
 
-    // Ambil nominal underpayment & overpayment kalau ada
-    const [underpaymentAmount, overpaymentAmount] = await Promise.all([
-      underpaymentUsage
-        ? this.getUnderpaymentAmount(underpaymentUsage.id)
-        : Promise.resolve(0),
-      overpaymentUsage
-        ? this.getOverpaymentAmount(overpaymentUsage.id)
-        : Promise.resolve(0),
-    ]);
+    const underPayAmount = underPayUsage ? underPayUsage.totalPrice : 0;
+    const overPayAmount = overPayUsage ? overPayUsage.totalPrice : 0;
 
     const { waterUsages, accumulated: billTotal } =
       this.calculateBillTotal(listBill);
     const finalTotal = this.ceilingToHundred(
-      billTotal + underpaymentAmount - overpaymentAmount,
+      billTotal + underPayAmount - overPayAmount,
     );
 
     return {
       waterUsages: waterUsages,
-      underpaymentUsage: underpaymentUsage,
-      underpaymentAmount: underpaymentAmount,
-      overpaymentUsage: overpaymentUsage,
-      overpaymentAmount: overpaymentAmount,
+      underpaymentUsage: underPayUsage,
+      overpaymentUsage: overPayUsage,
+      underpaymentAmount: underPayAmount,
+      overpaymentAmount: overPayAmount,
       billTotal: billTotal,
       finalTotal: finalTotal,
     };
@@ -95,7 +88,7 @@ export class BillingService {
     const waterUsages: WaterUsagePrice[] = [];
 
     for (const usage of oldest_first) {
-      if (['2', '3'].includes(usage.status)) {
+      if (['1', '2', '3'].includes(usage.status)) {
         continue;
       }
 
@@ -139,33 +132,53 @@ export class BillingService {
     });
   }
 
-  private getUnderpaymentUsage(customerId: number): Promise<WaterUsage | null> {
-    return this.waterUsageRepo.findOne({
+  private async getUnderpaymentUsage(
+    customerId: number,
+  ): Promise<WaterUsagePrice | null> {
+    const find = await this.waterUsageRepo.findOne({
       where: { customerId, status: '2', deleted: '0' },
       order: { id: 'DESC' },
     });
+
+    if (!find) return null;
+
+    const underPayAmount = await this.underpaymentRepo.findOne({
+      where: { waterUsageId: find.id, deleted: '0' },
+      order: { id: 'DESC' },
+    });
+
+    return {
+      waterUsageId: +find.id,
+      month: find.month,
+      year: find.year,
+      meterUsage: find.meterUsage,
+      status: find.status,
+      totalPrice: underPayAmount?.amount ?? 0,
+    };
   }
 
-  private getOverpaymentUsage(customerId: number): Promise<WaterUsage | null> {
-    return this.waterUsageRepo.findOne({
+  private async getOverpaymentUsage(
+    customerId: number,
+  ): Promise<WaterUsagePrice | null> {
+    const find = await this.waterUsageRepo.findOne({
       where: { customerId, status: '3', deleted: '0' },
       order: { id: 'DESC' },
     });
-  }
 
-  private async getUnderpaymentAmount(waterUsageId: number): Promise<number> {
-    const record = await this.underpaymentRepo.findOne({
-      where: { waterUsageId, deleted: '0' },
+    if (!find) return null;
+
+    const overPayAmount = await this.overpaymentRepo.findOne({
+      where: { waterUsageId: find.id, deleted: '0' },
       order: { id: 'DESC' },
     });
-    return record?.amount ?? 0;
-  }
 
-  private async getOverpaymentAmount(waterUsageId: number): Promise<number> {
-    const record = await this.overpaymentRepo.findOne({
-      where: { waterUsageId, deleted: '0' },
-      order: { id: 'DESC' },
-    });
-    return record?.amount ?? 0;
+    return {
+      waterUsageId: +find.id,
+      month: find.month,
+      year: find.year,
+      meterUsage: find.meterUsage,
+      status: find.status,
+      totalPrice: overPayAmount?.amount ?? 0,
+    };
   }
 }

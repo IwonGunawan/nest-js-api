@@ -203,7 +203,17 @@ export class PaymentsService {
         }),
       );
 
-      // 5c. Proses tiap bill (ASC: index 0 = bulan terlama)
+      // 5c. update water usage status 2 or 3
+      if (bill.underpaymentUsage || bill.overpaymentUsage) {
+        const wuID = bill.underpaymentUsage
+          ? bill.underpaymentUsage.waterUsageId
+          : bill.overpaymentUsage?.waterUsageId;
+        await manager.update(WaterUsage, wuID, {
+          status: WaterUsageStatus.PAID,
+        });
+      }
+
+      // 5d. Proses tiap bill (ASC: index 0 = bulan terlama)
       for (let i = 0; i < bill.waterUsages.length; i++) {
         const usage = bill.waterUsages[i];
         const isLastMonth = i === bill.waterUsages.length - 1;
