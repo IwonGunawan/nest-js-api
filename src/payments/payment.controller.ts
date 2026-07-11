@@ -37,7 +37,12 @@ export class PaymentsController {
     return this.paymentsService.getBill(customerId);
   }
 
-  @Get('customer/:customerId')
+  @Get('receipts/:paymentId')
+  getReceipt(@Param('paymentId', ParseIntPipe) paymentId: number) {
+    return this.paymentsService.getReceipt(paymentId);
+  }
+
+  @Get('histories/:customerId')
   histories(
     @Param('customerId', ParseIntPipe) customerId: number,
     @Query() query: QueryPaymentDto,

@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { DataSource, Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
@@ -9,13 +13,27 @@ import { Underpayment } from '../common/entities/underpayment.entity';
 import { WaterUsage } from '../common/entities/water-usage.entity';
 import { ActivityLog } from '../common/entities/activity-log.entity';
 import { Customer } from '../common/entities/customer.entity';
-import { BillingService } from './billing.service';
+import { BillingService, WaterUsagePrice } from './billing.service';
 import { QueryPaymentDto } from './dtos/query-payment.dto';
 import { CreatePaymentDto } from './dtos/create-payment.dto';
 import { QueryWaterUsageDto } from '../water-usages/dtos/query-water-usage.dto';
 import { WaterUsageService } from '../water-usages/water-usage.service';
 import { formatRupiah, STATUS_MAP, WaterUsageStatus } from '../common/consts';
 import { formatDateTimeIndonesia } from '../common/consts/datetime';
+
+export interface Receipt {
+  paymentId: number;
+  refNumber: string;
+  paidDate: string;
+  total: number;
+  cash: number;
+  change: number;
+  textInfo: string;
+  monthTotal: number;
+  monthList: WaterUsagePrice[];
+  underpayment: WaterUsagePrice;
+  overpayment: WaterUsagePrice;
+}
 
 @Injectable()
 export class PaymentsService {
@@ -24,6 +42,10 @@ export class PaymentsService {
     private paymentRepo: Repository<Payment>,
     @InjectRepository(Customer)
     private customerRepo: Repository<Customer>,
+    @InjectRepository(PaymentDetail)
+    private paymentDetailRepo: Repository<PaymentDetail>,
+    @InjectRepository(ActivityLog)
+    private activityLogRepo: Repository<ActivityLog>,
     private billingService: BillingService,
     private waterUsageService: WaterUsageService,
     private dataSource: DataSource,
@@ -143,6 +165,51 @@ export class PaymentsService {
         totalPages: Math.ceil(total / limit),
       },
     };
+  }
+
+  async getReceipt(paymentId: number): Promise<Receipt> {
+    const payment = await this.paymentRepo.findOne({
+      where: { id: paymentId, deleted: '0' },
+    });
+
+    if (!payment) {
+      throw new NotFoundException('Pembayaran tidak ditemukan');
+    }
+
+    const [monthTotal, logTextInfo] = await Promise.all([
+      this.paymentDetailRepo.count({ where: { paymentId } }),
+      this.logTextInfo(payment.logUuid),
+    ]);
+
+    const parseInfo = payment.info.split('###');
+    const bills = parseInfo[0];
+    const underPayment = parseInfo[1];
+    const overPayment = parseInfo[2];
+
+    return {
+      paymentId: payment.id,
+      refNumber: payment.logUuid,
+      paidDate: payment.createdAt?.toISOString() ?? '',
+      total: payment.total,
+      cash: payment.cash,
+      change: Math.max(0, payment.cash - payment.total),
+      monthTotal,
+      monthList: JSON.parse(bills) as WaterUsagePrice[],
+      underpayment: JSON.parse(underPayment) as WaterUsagePrice,
+      overpayment: JSON.parse(overPayment) as WaterUsagePrice,
+      textInfo: logTextInfo?.logs ?? '',
+    };
+  }
+
+  private async logTextInfo(logUuid: string): Promise<ActivityLog | null> {
+    const activityLog = await this.activityLogRepo.findOne({
+      where: { uuid: logUuid, type: 'paid', action: 'text_info' },
+      order: { id: 'ASC' },
+    });
+
+    if (!activityLog) return null;
+
+    return activityLog;
   }
 
   // ─── CREATE PAYMENT ────────────────────────────────────────────────
@@ -314,6 +381,7 @@ export class PaymentsService {
 
       // 6. Return receipt
       return this.buildReceipt({
+        paymentId: payment.id,
         logUuid,
         now,
         dto,
@@ -322,6 +390,7 @@ export class PaymentsService {
         isUnderpayment,
         isOverpayment,
         isExact,
+        savedAmount: isOverpayment ? dto.saveChange : 0,
       });
     });
   }
@@ -347,6 +416,7 @@ export class PaymentsService {
   }
 
   private buildReceipt(params: {
+    paymentId: number;
     logUuid: string;
     now: Date;
     dto: CreatePaymentDto;
@@ -355,9 +425,18 @@ export class PaymentsService {
     isUnderpayment: boolean;
     isOverpayment: boolean;
     isExact: boolean;
+    savedAmount: number;
   }) {
-    const { logUuid, now, dto, bill, change, isUnderpayment, isOverpayment } =
-      params;
+    const {
+      paymentId,
+      logUuid,
+      now,
+      dto,
+      bill,
+      change,
+      isUnderpayment,
+      isOverpayment,
+    } = params;
 
     const textInfo = this.textInfo(
       isUnderpayment,
@@ -367,12 +446,14 @@ export class PaymentsService {
     );
 
     return {
+      paymentId,
       refNumber: logUuid,
       paidDate: now.toISOString(),
       total: bill.finalTotal,
       cash: dto.cash,
       change: Math.max(0, change),
       monthTotal: bill.waterUsages.length,
+      savedAmount: params.savedAmount,
       textInfo,
     };
   }

@@ -5,6 +5,7 @@ import { WaterUsage } from '../common/entities/water-usage.entity';
 import { Underpayment } from '../common/entities/underpayment.entity';
 import { Overpayment } from '../common/entities/overpayment.entity';
 import { currentDate } from '../common/consts/datetime';
+import { ceilingToHundred } from '../common/consts';
 
 export interface BillDetail {
   // tagihan baru (status='0')
@@ -56,7 +57,7 @@ export class BillingService {
 
     const { waterUsages, accumulated: billTotal } =
       this.calculateBillTotal(listBill);
-    const finalTotal = this.ceilingToHundred(
+    const finalTotal = ceilingToHundred(
       billTotal + underPayAmount - overPayAmount,
     );
 
@@ -82,12 +83,12 @@ export class BillingService {
     const current = currentDate();
 
     // Reverse: proses dari bulan terlama ke terbaru
-    const oldest_first = [...usages].reverse();
+    const oldestFirst = [...usages].reverse();
 
     let accumulated = 0;
     const waterUsages: WaterUsagePrice[] = [];
 
-    for (const usage of oldest_first) {
+    for (const usage of oldestFirst) {
       if (['1', '2', '3'].includes(usage.status)) {
         continue;
       }
@@ -101,7 +102,7 @@ export class BillingService {
       // dan selalu pada bulan-bulan sebelumnya
       const applyPenalty = !isCurrentMonth || current.date > 15;
       const penalty = applyPenalty ? usageAmount * 0.05 : 0;
-      const total = usageAmount + penalty;
+      const total = ceilingToHundred(usageAmount + penalty);
 
       waterUsages.push({
         waterUsageId: Number(usage.id),
@@ -116,10 +117,6 @@ export class BillingService {
     }
 
     return { waterUsages, accumulated };
-  }
-
-  ceilingToHundred(amount: number): number {
-    return Math.ceil(amount / 100) * 100;
   }
 
   // ─── Queries ───────────────────────────────────────────────────────

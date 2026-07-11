@@ -1,3 +1,11 @@
+export const formatRupiah = (n: number): string => {
+  return 'Rp' + n.toLocaleString('id-ID');
+};
+
+export const ceilingToHundred = (amount: number): number => {
+  return Math.ceil(amount / 100) * 100;
+};
+
 export const VILLAGE_CODE_MAP: Record<number, string> = {
   1: 'KLB',
   2: 'CL',
@@ -14,8 +22,6 @@ export const WaterUsageStatus = {
   UNDERPAYMENT: '2',
   OVERPAYMENT: '3',
 };
-
-export const formatRupiah = (n: number) => 'Rp' + n.toLocaleString('id-ID');
 
 export const STATUS_MAP: Record<string, string> = {
   '0': 'Belum Bayar',
