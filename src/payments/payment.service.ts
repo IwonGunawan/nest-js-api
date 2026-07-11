@@ -124,10 +124,10 @@ export class PaymentsService {
     });
 
     if (!lastPayment) return '';
-    const text = `Total tagihan terakhir ${formatRupiah(lastPayment?.total)}
+    const text = `Tanggal ${formatDateTimeIndonesia(lastPayment.createdAt)} 
+    total tagihan ${formatRupiah(lastPayment?.total)}
     lalu dibayar sebesar ${formatRupiah(lastPayment.cash)}
-    dengan status ${STATUS_MAP[lastPayment.status]} 
-    tanggal ${formatDateTimeIndonesia(lastPayment.createdAt)}
+    [ ${STATUS_MAP[lastPayment.status]} ]
     `;
 
     return text.replace(/\s+/g, ' ').trim();
