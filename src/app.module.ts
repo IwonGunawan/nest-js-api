@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { APP_INTERCEPTOR } from '@nestjs/core';
 import { AuthModule } from './auth/auth.module';
 import { CustomersModule } from './customers/customer.module';
 import { RatesModule } from './rates/rate.module';
@@ -9,6 +10,7 @@ import { PaymentsModule } from './payments/payment.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { ReportsModule } from './reports/report.module';
 import { UsersModule } from './users/user.module';
+import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 
 @Module({
   imports: [
@@ -47,6 +49,11 @@ import { UsersModule } from './users/user.module';
     UsersModule,
   ],
   controllers: [],
-  providers: [],
+  providers: [
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: LoggingInterceptor,
+    },
+  ],
 })
 export class AppModule {}
