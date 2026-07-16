@@ -114,7 +114,6 @@ export class DashboardService {
       arrearsAmount: number;
     }[]
   > {
-    // Ambil semua underpayment aktif + customer info
     const result = await this.underpaymentRepo
       .createQueryBuilder('u')
       .select('c.id', 'customer_id')
@@ -123,6 +122,17 @@ export class DashboardService {
       .addSelect('SUM(u.amount)', 'arrears_amount')
       .innerJoin('water_usages', 'wu', 'wu.id = u.water_usage_id')
       .innerJoin('customers', 'c', 'c.id = wu.customer_id')
+      .innerJoin(
+        (qb) =>
+          qb
+            .select('latest.water_usage_id', 'water_usage_id')
+            .addSelect('MAX(latest.id)', 'latest_id')
+            .from('underpayment', 'latest')
+            .where('latest.deleted = :latestDeleted', { latestDeleted: '0' })
+            .groupBy('latest.water_usage_id'),
+        'latest',
+        'latest.water_usage_id = u.water_usage_id AND latest.latest_id = u.id',
+      )
       .where('u.deleted = :deleted', { deleted: '0' })
       .andWhere('wu.deleted = :deleted', { deleted: '0' })
       .andWhere('wu.status = :status', { status: '2' })

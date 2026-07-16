@@ -31,8 +31,8 @@ export interface Receipt {
   textInfo: string;
   monthTotal: number;
   monthList: WaterUsagePrice[];
-  underpayment: WaterUsagePrice;
-  overpayment: WaterUsagePrice;
+  underpayment: WaterUsagePrice | null;
+  overpayment: WaterUsagePrice | null;
 }
 
 @Injectable()
@@ -186,6 +186,17 @@ export class PaymentsService {
     const underPayment = parseInfo[1];
     const overPayment = parseInfo[2];
 
+    const parseReceiptValue = (value: string): WaterUsagePrice | null => {
+      const valParse = value ? (JSON.parse(value) as WaterUsagePrice) : null;
+      if (!valParse || Object.keys(valParse).length == 0) return null;
+
+      try {
+        return valParse;
+      } catch {
+        return null;
+      }
+    };
+
     return {
       paymentId: payment.id,
       refNumber: payment.logUuid,
@@ -195,8 +206,8 @@ export class PaymentsService {
       change: Math.max(0, payment.cash - payment.total),
       monthTotal,
       monthList: JSON.parse(bills) as WaterUsagePrice[],
-      underpayment: JSON.parse(underPayment) as WaterUsagePrice,
-      overpayment: JSON.parse(overPayment) as WaterUsagePrice,
+      underpayment: parseReceiptValue(underPayment),
+      overpayment: parseReceiptValue(overPayment),
       textInfo: logTextInfo?.logs ?? '',
     };
   }
