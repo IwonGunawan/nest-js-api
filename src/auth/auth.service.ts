@@ -1,10 +1,15 @@
-import { Injectable, UnauthorizedException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcrypt';
 import { User } from '../common/entities/user.entity';
 import { LoginDto } from './dtos/login.dto';
+import { ChangePasswordDto } from './dtos/change-password.dto';
 
 @Injectable()
 export class AuthService {
@@ -45,6 +50,39 @@ export class AuthService {
       throw new UnauthorizedException('Akun tidak aktif');
 
     return this.generateToken(user);
+  }
+
+  async changePassword(userId: number, dto: ChangePasswordDto) {
+    if (dto.oldPassword === dto.newPassword) {
+      throw new BadRequestException(
+        'Password baru tidak boleh sama dengan password lama',
+      );
+    }
+
+    const user = await this.userRepo.findOne({
+      where: { id: userId, deleted: '0' },
+    });
+
+    if (!user) throw new UnauthorizedException('Akun tidak ditemukan');
+
+    if (user.status === '1')
+      throw new UnauthorizedException('Akun tidak aktif');
+
+    const isMatch = await bcrypt.compare(dto.oldPassword, user.password);
+    if (!isMatch) throw new UnauthorizedException('Password lama salah');
+
+    user.password = await bcrypt.hash(dto.newPassword, 10);
+    user.modifiedAt = new Date();
+    user.modifiedBy = user.name;
+
+    const saved = await this.userRepo.save(user);
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { password: _, ...result } = saved;
+    return {
+      message: 'Password berhasil diubah',
+      user: result,
+    };
   }
 
   private generateToken(user: User) {
