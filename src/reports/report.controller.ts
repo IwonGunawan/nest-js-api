@@ -16,7 +16,6 @@ export class ReportsController {
   ) {}
 
   @Get('monthly')
-  @Roles('admin')
   getMonthlyReport(@Query() query: ReportQueryDto) {
     return this.reportsService.getMonthlyReport(query);
   }
