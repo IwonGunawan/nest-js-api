@@ -19,11 +19,15 @@ export class CustomersService {
   ) {}
 
   async findAll(query: QueryCustomerDto) {
+    // Default ke customer aktif. Kirim ?status=1 untuk history non-aktif.
+    const status = query.status ?? '0';
+    const deleted = status === '1' ? '1' : '0';
+
     const qb = this.customerRepo
       .createQueryBuilder('c')
       .leftJoinAndSelect('c.village', 'village')
       .leftJoinAndSelect('c.prefix', 'prefix')
-      .where('c.deleted = :deleted', { deleted: '0' });
+      .where('c.deleted = :deleted', { deleted });
 
     const page = Number(query.page) > 1 ? Number(query.page) : 1;
     const limit = Number(query.limit ?? 10);
