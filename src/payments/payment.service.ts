@@ -124,7 +124,7 @@ export class PaymentsService {
 
   private async buildLastPayment(customerId: number) {
     const lastPayment = await this.paymentRepo.findOne({
-      where: { customerId },
+      where: { customerId, deleted: '0' },
       order: { id: 'DESC' },
     });
 
