@@ -33,6 +33,15 @@ export interface WaterUsagePrice {
   totalPrice: number;
 }
 
+export interface WaterUsagePriceOld {
+  trx_id: number;
+  trx_year: number;
+  trx_month: number;
+  trx_usage: number;
+  insufficient_nominal?: number;
+  over_nominal?: number;
+}
+
 @Injectable()
 export class BillingService {
   constructor(

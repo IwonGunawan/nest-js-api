@@ -13,7 +13,11 @@ import { Underpayment } from '../common/entities/underpayment.entity';
 import { WaterUsage } from '../common/entities/water-usage.entity';
 import { ActivityLog } from '../common/entities/activity-log.entity';
 import { Customer } from '../common/entities/customer.entity';
-import { BillingService, WaterUsagePrice } from './billing.service';
+import {
+  BillingService,
+  WaterUsagePrice,
+  WaterUsagePriceOld,
+} from './billing.service';
 import { QueryPaymentDto } from './dtos/query-payment.dto';
 import { CreatePaymentDto } from './dtos/create-payment.dto';
 import { QueryWaterUsageDto } from '../water-usages/dtos/query-water-usage.dto';
@@ -61,6 +65,7 @@ export class PaymentsService {
         const bill = await this.billingService.getBillDetail(customerId);
         return {
           ...row,
+          prefix: row.prefix ?? '',
           finalTotal: bill.finalTotal,
         };
       }),
@@ -176,22 +181,36 @@ export class PaymentsService {
       throw new NotFoundException('Pembayaran tidak ditemukan');
     }
 
-    const [monthTotal, logTextInfo] = await Promise.all([
-      this.paymentDetailRepo.count({ where: { paymentId } }),
-      this.logTextInfo(payment.logUuid),
-    ]);
+    const logTextInfo = await this._logTextInfo(payment.logUuid);
 
     const parseInfo = payment.info.split('###');
-    const bills = parseInfo[0];
+    const bills = this._cleansingBills(parseInfo[0]);
     const underPayment = parseInfo[1];
     const overPayment = parseInfo[2];
 
-    const parseReceiptValue = (value: string): WaterUsagePrice | null => {
-      const valParse = value ? (JSON.parse(value) as WaterUsagePrice) : null;
+    const parseReceiptValue = (
+      value: string,
+      status: string,
+    ): WaterUsagePrice | null => {
+      const valParse = value
+        ? (JSON.parse(value) as WaterUsagePrice | WaterUsagePriceOld)
+        : null;
       if (!valParse || Object.keys(valParse).length == 0) return null;
 
       try {
-        return valParse;
+        if (!('trx_id' in valParse)) return valParse;
+
+        let totalPrice = 0;
+        if (status == '2') totalPrice = +(valParse.insufficient_nominal ?? 0);
+        if (status == '3') totalPrice = +(valParse.over_nominal ?? 0);
+        return {
+          waterUsageId: +valParse.trx_id,
+          year: valParse.trx_year,
+          month: valParse.trx_month,
+          meterUsage: valParse.trx_usage,
+          status,
+          totalPrice,
+        };
       } catch {
         return null;
       }
@@ -204,15 +223,38 @@ export class PaymentsService {
       total: payment.total,
       cash: payment.cash,
       change: Math.max(0, payment.cash - payment.total),
-      monthTotal,
-      monthList: JSON.parse(bills) as WaterUsagePrice[],
-      underpayment: parseReceiptValue(underPayment),
-      overpayment: parseReceiptValue(overPayment),
+      monthTotal: bills.length,
+      monthList: bills as WaterUsagePrice[],
+      underpayment: parseReceiptValue(underPayment, '2'),
+      overpayment: parseReceiptValue(overPayment, '3'),
       textInfo: logTextInfo?.logs ?? '',
     };
   }
 
-  private async logTextInfo(logUuid: string): Promise<ActivityLog | null> {
+  private _cleansingBills(paymentInfo: string) {
+    /**
+     [{"waterUsageId":23493,"month":6,"year":2026,"meterUsage":16,"status":"0","totalPrice":16800}]
+     [{"trx_id":22837,"trx_year":2026,"trx_month":5,"trx_usage":25}]
+     */
+    const parsed = JSON.parse(paymentInfo) as Record<string, unknown>[];
+    if (!Array.isArray(parsed) || parsed.length === 0) return parsed;
+
+    const first = parsed[0];
+    if (!('trx_id' in first)) return parsed;
+
+    const cleansed: WaterUsagePrice[] = parsed.map((item) => ({
+      waterUsageId: item.trx_id as number,
+      year: item.trx_year as number,
+      month: item.trx_month as number,
+      meterUsage: item.trx_usage as number,
+      status: '0',
+      totalPrice: 0, //NEXT: improve with manually calculate based on payment.created_at
+    }));
+
+    return cleansed;
+  }
+
+  private async _logTextInfo(logUuid: string): Promise<ActivityLog | null> {
     const activityLog = await this.activityLogRepo.findOne({
       where: { uuid: logUuid, type: 'paid', action: 'text_info' },
       order: { id: 'ASC' },
