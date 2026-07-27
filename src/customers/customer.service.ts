@@ -44,7 +44,7 @@ export class CustomersService {
         search: `%${query.search}%`,
       });
     }
-    const [data, total] = await qb
+    const [data, totalData] = await qb
       .orderBy('c.name', 'ASC')
       .skip(skip)
       .take(limit)
@@ -53,10 +53,10 @@ export class CustomersService {
     return {
       data,
       meta: {
-        total,
         page,
         limit,
-        totalPages: Math.ceil(total / limit),
+        totalData,
+        totalPages: Math.ceil(totalData / limit),
       },
     };
   }
