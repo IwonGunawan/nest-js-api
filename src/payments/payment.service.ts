@@ -222,7 +222,7 @@ export class PaymentsService {
       paidDate: payment.createdAt?.toISOString() ?? '',
       total: payment.total,
       cash: payment.cash,
-      change: Math.max(0, payment.cash - payment.total),
+      change: Math.max(0, payment.total - payment.cash),
       monthTotal: bills.length,
       monthList: bills as WaterUsagePrice[],
       underpayment: parseReceiptValue(underPayment, '2'),
@@ -422,11 +422,11 @@ export class PaymentsService {
   ) {
     /**
      * LUNAS
-     * BELUM LUNAS, sisa tagihan Rp10.000
+     * BELUM LUNAS, Rp10.000 adalah sisa tagihan
      * LUNAS, disimpan Rp1.000
      */
     return isUnderpayment
-      ? `BELUM LUNAS, sisa tagihan ${formatRupiah(Math.abs(change))}`
+      ? `BELUM LUNAS, ${formatRupiah(Math.abs(change))} adalah sisa tagihan`
       : isOverpayment
         ? `LUNAS, disimpan ${formatRupiah(Math.abs(saveChange))} untuk bulan depan`
         : 'LUNAS';
