@@ -32,6 +32,11 @@ export class PaymentsController {
     return this.paymentsService.paymentSummary();
   }
 
+  @Get('top-arrears')
+  topArrears(@Query('limit') limit?: string) {
+    return this.paymentsService.topArrears(limit ? Number(limit) : 10);
+  }
+
   @Get('bill')
   getBill(@Query('customerId', ParseIntPipe) customerId: number) {
     return this.paymentsService.getBill(customerId);

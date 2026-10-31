@@ -4,7 +4,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { DataSource, EntityManager, Repository } from 'typeorm';
+import { DataSource, EntityManager, In, Repository } from 'typeorm';
 import { v4 as uuidv4 } from 'uuid';
 import { Payment } from '../common/entities/payment.entity';
 import { PaymentDetail } from '../common/entities/payment-detail.entity';
@@ -22,7 +22,12 @@ import { QueryPaymentDto } from './dtos/query-payment.dto';
 import { CreatePaymentDto } from './dtos/create-payment.dto';
 import { QueryWaterUsageDto } from '../water-usages/dtos/query-water-usage.dto';
 import { WaterUsageService } from '../water-usages/water-usage.service';
-import { formatRupiah, STATUS_MAP, WaterUsageStatus } from '../common/consts';
+import {
+  formatRupiah,
+  STATUS_MAP,
+  WaterUsageStatus,
+  ceilingToHundred,
+} from '../common/consts';
 import { formatDateTimeIndonesia } from '../common/consts/datetime';
 
 export interface Receipt {
@@ -50,6 +55,12 @@ export class PaymentsService {
     private paymentDetailRepo: Repository<PaymentDetail>,
     @InjectRepository(ActivityLog)
     private activityLogRepo: Repository<ActivityLog>,
+    @InjectRepository(WaterUsage)
+    private waterUsageRepo: Repository<WaterUsage>,
+    @InjectRepository(Underpayment)
+    private underpaymentRepo: Repository<Underpayment>,
+    @InjectRepository(Overpayment)
+    private overpaymentRepo: Repository<Overpayment>,
     private billingService: BillingService,
     private waterUsageService: WaterUsageService,
     private dataSource: DataSource,
@@ -101,6 +112,73 @@ export class PaymentsService {
       totalCount > 0 ? Math.round((paidCount / totalCount) * 100) : 0;
 
     return { paidCount, unpaidCount, percent };
+  }
+
+  // ─── TOP ARREARS (align with payment/bayar air logic) ─────────────
+
+  async topArrears(limit: number = 10) {
+    const customers = await this.customerRepo.find({
+      where: { deleted: '0' },
+      select: ['id', 'code', 'name'],
+    });
+
+    const usages = await this.waterUsageRepo.find({
+      where: { status: In(['0', '2', '3']), deleted: '0' },
+      relations: ['rate'],
+      order: { id: 'DESC' },
+    });
+
+    const underpayments = await this.underpaymentRepo.find({
+      where: { deleted: '0' },
+    });
+    const overpayments = await this.overpaymentRepo.find({
+      where: { deleted: '0' },
+    });
+
+    const underMap = new Map<number, number>();
+    for (const u of [...underpayments].sort((a, b) => a.id - b.id)) {
+      underMap.set(u.waterUsageId, u.amount);
+    }
+    const overMap = new Map<number, number>();
+    for (const o of [...overpayments].sort((a, b) => a.id - b.id)) {
+      overMap.set(o.waterUsageId, o.amount);
+    }
+
+    const usagesByCustomer = new Map<number, WaterUsage[]>();
+    for (const u of usages) {
+      const list = usagesByCustomer.get(u.customerId) ?? [];
+      list.push(u);
+      usagesByCustomer.set(u.customerId, list);
+    }
+
+    const result = customers.map((customer) => {
+      const customerUsages = usagesByCustomer.get(customer.id) ?? [];
+      const { accumulated: billTotal } =
+        this.billingService.calculateBillTotal(customerUsages);
+
+      const underUsage = customerUsages.find((u) => u.status === '2');
+      const underAmount = underUsage ? (underMap.get(underUsage.id) ?? 0) : 0;
+
+      const overUsage = customerUsages.find((u) => u.status === '3');
+      const overAmount = overUsage ? (overMap.get(overUsage.id) ?? 0) : 0;
+
+      const finalTotal = ceilingToHundred(billTotal + underAmount - overAmount);
+
+      return {
+        customerId: customer.id,
+        code: customer.code,
+        name: customer.name,
+        villageId: 0,
+        prefix: '',
+        isChecked: 0,
+        finalTotal,
+      };
+    });
+
+    return result
+      .filter((r) => r.finalTotal > 0)
+      .sort((a, b) => b.finalTotal - a.finalTotal)
+      .slice(0, limit);
   }
 
   // ─── GET BILL ──────────────────────────────────────────────────────
