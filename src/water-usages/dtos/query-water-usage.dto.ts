@@ -24,4 +24,8 @@ export class QueryWaterUsageDto {
   @IsOptional()
   @IsIn(['ASC', 'DESC'])
   sortOrder?: 'ASC' | 'DESC';
+
+  @IsOptional()
+  @IsIn(['true', 'false'])
+  isUnchecked?: string;
 }
