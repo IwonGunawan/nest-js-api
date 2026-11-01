@@ -1,5 +1,8 @@
 export function currentDate() {
-  const now = new Date();
+  // Operasional aplikasi menggunakan WIB (Asia/Jakarta).
+  const now = new Date(
+    new Date().toLocaleString('en-US', { timeZone: 'Asia/Jakarta' }),
+  );
   const date = now.getDate();
   const month = now.getMonth() + 1;
   const year = now.getFullYear();

@@ -10,6 +10,7 @@ import { PaymentsModule } from './payments/payment.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { ReportsModule } from './reports/report.module';
 import { UsersModule } from './users/user.module';
+import { SiteSettingsModule } from './site-settings/site-settings.module';
 import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
 
 @Module({
@@ -47,6 +48,7 @@ import { LoggingInterceptor } from './common/interceptors/logging.interceptor';
     DashboardModule,
     ReportsModule,
     UsersModule,
+    SiteSettingsModule,
   ],
   controllers: [],
   providers: [

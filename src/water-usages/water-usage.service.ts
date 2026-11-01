@@ -24,6 +24,7 @@ export interface WaterUsageListItem {
   villageId: number;
   prefix: string;
   isChecked: 0 | 1; // 1 = sudah input bulan ini, 0 = belum
+  lastMeter: number | null; // meter terakhir sebelum bulan berjalan, null jika meter baru/diganti
 }
 
 export interface WaterUsageListMeta {
@@ -61,6 +62,9 @@ export class WaterUsageService {
     const sortOrder = query.sortOrder ?? 'ASC';
 
     const { month, year } = currentDate();
+    const onlyUnchecked = query.isUnchecked === 'true';
+
+    const baseParams = { month, year, deleted: '0' };
 
     const qb = this.customerRepo
       .createQueryBuilder('c')
@@ -71,17 +75,27 @@ export class WaterUsageService {
         'c.village_id  AS villageId',
         'prefix.prefix AS prefix',
         // is_checked: 1 jika sudah ada water_usage bulan ini, 0 jika belum
-        `CASE WHEN wu.id IS NOT NULL THEN 1 ELSE 0 END AS isChecked`,
+        `CASE WHEN EXISTS (
+          SELECT 1
+          FROM water_usages wu
+          WHERE wu.customer_id = c.id
+            AND wu.month = :month
+            AND wu.year = :year
+            AND wu.deleted = :deleted
+        ) THEN 1 ELSE 0 END AS isChecked`,
+        // lastMeter: meter terakhir sebelum bulan berjalan, bukan pencatatan bulan berjalan
+        `(SELECT CASE WHEN wu2.last_used = '1' THEN NULL ELSE wu2.meter_number END
+          FROM water_usages wu2
+          WHERE wu2.customer_id = c.id
+            AND wu2.deleted = :deleted
+            AND (wu2.year < :year OR (wu2.year = :year AND wu2.month < :month))
+          ORDER BY wu2.year DESC, wu2.month DESC, wu2.id DESC
+          LIMIT 1) AS lastMeter`,
       ])
       .leftJoin('c.prefix', 'prefix')
-      // left join ke water_usages hanya untuk bulan & tahun sekarang
-      .leftJoin(
-        'water_usages',
-        'wu',
-        'wu.customer_id = c.id AND wu.month = :month AND wu.year = :year AND wu.deleted = :deleted',
-        { month, year, deleted: '0' },
-      )
       .where('c.deleted = :deleted', { deleted: '0' });
+
+    qb.setParameters(baseParams);
 
     if (query.villageId) {
       qb.andWhere('c.village_id = :villageId', { villageId: query.villageId });
@@ -93,24 +107,70 @@ export class WaterUsageService {
       });
     }
 
+    if (onlyUnchecked) {
+      qb.andWhere(
+        `NOT EXISTS (
+          SELECT 1
+          FROM water_usages wu
+          WHERE wu.customer_id = c.id
+            AND wu.month = :month
+            AND wu.year = :year
+            AND wu.deleted = :deleted
+        )`,
+        baseParams,
+      );
+    }
+
     const sortColumn = sortBy === 'name' ? 'c.name' : 'c.id';
     qb.orderBy(sortColumn, sortOrder).offset(offset).limit(limit);
 
-    const [data, totalData] = await Promise.all([
+    // Count query dengan filter dan semantics yang identik.
+    const countQb = this.customerRepo
+      .createQueryBuilder('c')
+      .where('c.deleted = :deleted', { deleted: '0' })
+      .setParameters(baseParams);
+
+    if (query.villageId) {
+      countQb.andWhere('c.village_id = :villageId', {
+        villageId: query.villageId,
+      });
+    }
+
+    if (query.search) {
+      countQb.andWhere('(c.name LIKE :search OR c.code LIKE :search)', {
+        search: `%${query.search}%`,
+      });
+    }
+
+    if (onlyUnchecked) {
+      countQb.andWhere(
+        `NOT EXISTS (
+          SELECT 1
+          FROM water_usages wu
+          WHERE wu.customer_id = c.id
+            AND wu.month = :month
+            AND wu.year = :year
+            AND wu.deleted = :deleted
+        )`,
+        baseParams,
+      );
+    }
+
+    const [rawData, totalData] = await Promise.all([
       qb.getRawMany<WaterUsageListItem>(),
-      // count query terpisah tanpa pagination
-      this.customerRepo
-        .createQueryBuilder('c')
-        .where('c.deleted = :deleted', { deleted: '0' })
-        .andWhere(query.villageId ? 'c.village_id = :villageId' : '1=1', {
-          villageId: query.villageId,
-        })
-        .andWhere(
-          query.search ? '(c.name LIKE :search OR c.code LIKE :search)' : '1=1',
-          { search: `%${query.search ?? ''}%` },
-        )
-        .getCount(),
+      countQb.getCount(),
     ]);
+
+    const data = rawData.map((row) => ({
+      ...row,
+      customerId: Number(row.customerId),
+      villageId: Number(row.villageId),
+      isChecked: Number(row.isChecked) as 0 | 1,
+      lastMeter:
+        row.lastMeter === null || row.lastMeter === undefined
+          ? null
+          : Number(row.lastMeter),
+    }));
 
     return {
       data,
@@ -231,7 +291,7 @@ export class WaterUsageService {
         'v.id                        AS villageId',
         'v.name                      AS villageName',
         'COUNT(DISTINCT c.id)        AS totalCustomers',
-        'COUNT(DISTINCT wu.id)       AS checkedCount',
+        'COUNT(DISTINCT CASE WHEN wu.id IS NOT NULL THEN c.id END) AS checkedCount',
       ])
       .leftJoin('v.customers', 'c', 'c.deleted = :deleted', { deleted: '0' })
       .leftJoin(
