@@ -43,6 +43,14 @@ export class UsersController {
     return this.usersService.update(id, dto, user.name);
   }
 
+  @Patch(':id/reset-password')
+  resetPassword(
+    @Param('id', ParseIntPipe) id: number,
+    @CurrentUser() user: User,
+  ) {
+    return this.usersService.resetPassword(id, user.name);
+  }
+
   @Patch(':id/status')
   toggleStatus(
     @Param('id', ParseIntPipe) id: number,

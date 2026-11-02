@@ -11,6 +11,8 @@ import { User } from '../common/entities/user.entity';
 import { CreateUserDto } from './dtos/create-user.dto';
 import { UpdateUserDto } from './dtos/update-user.dto';
 
+const DEFAULT_PASSWORD = 'cikaret999';
+
 @Injectable()
 export class UsersService {
   constructor(
@@ -82,6 +84,22 @@ export class UsersService {
     // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { password: _, ...result } = saved;
     return result;
+  }
+
+  async resetPassword(id: number, modifiedBy: string) {
+    const user = await this.findOne(id);
+
+    user.password = await bcrypt.hash(DEFAULT_PASSWORD, 10);
+    user.modifiedAt = new Date();
+    user.modifiedBy = modifiedBy;
+
+    await this.userRepo.save(user);
+
+    return {
+      id: user.id,
+      message: 'Password berhasil direset',
+      defaultPassword: DEFAULT_PASSWORD,
+    };
   }
 
   async toggleStatus(id: number, modifiedBy: string) {
